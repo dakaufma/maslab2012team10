@@ -13,7 +13,13 @@ redVal = 255
 redHueMax = 15
 redHueMin = 170
 
-def distFromColor(distImg, hue, sat, val, colorHue, colorSat, colorVal, hueWeight=1, satWeight=1, valWeight=1):
+def distFromColor(distImg, maskedDistImg, mask, binImg, hue, sat, val, colorHue, colorSat, colorVal, hueWeight=1, satWeight=1, valWeight=1):
+	if distImg  == None or distImg.shape != hue.shape:
+		distImg = numpy.zeros(hue.shape, numpy.uint8)
+	if maskedDistImg == None or maskedDistImg.shape!=hue.shape:
+		maskedDistImg = numpy.zeros(hue.shape, numpy.uint8)
+	if binImg == None or binImg.shape!=hue.shape:
+		binImg = numpy.zeros(hue.shape, numpy.uint8)
 	#distance = weighted average of dhue**2, dsat**2, dval**2
 	scale = 1.0/(hueWeight + satWeight + valWeight)
 	hueWeight *= scale
@@ -32,6 +38,9 @@ def distFromColor(distImg, hue, sat, val, colorHue, colorSat, colorVal, hueWeigh
 			elif h > 90:
 				h-=180
 			distImg.itemset((row, col), math.sqrt(h*h*hueWeight + s*s*satWeight + v*v*valWeight))
+	cv2.max(distImg, mask, maskedDistImg)
+	cv2.threshold(maskedDistImg, 90, 255, cv2.THRESH_BINARY_INV, binImg) #imperically determined 90 is a good threshold
+	return distImg, maskedDistImg, binImg
 			
 
 def mouseListener(event, x, y, flags, img):
@@ -43,6 +52,34 @@ def displayImage(windowName, img):
 	cv2.imshow(windowName, img)
 	cv2.setMouseCallback(windowName, mouseListener, img)
 
+def getHSV(img, hsv=None, hue=None, sat=None, val=None):
+	if hsv == None or hsv.shape!=img.shape:
+		hsv = numpy.zeros(img.shape, numpy.uint8)
+	if hue == None or hue.shape!=img.shape:
+		hue = numpy.zeros(img.shape[:2], numpy.uint8)
+	if sat == None or sat.shape!=img.shape:
+		sat = numpy.zeros(img.shape[:2], numpy.uint8)
+	if val == None or val.shape!=img.shape:
+		val = numpy.zeros(img.shape[:2], numpy.uint8)
+	cv2.cvtColor(img, cv2.COLOR_BGR2HSV, hsv)
+	cv2.split(hsv, (hue, sat, val))
+	return (hsv, hue, sat, val)
+
+def genRedMask(hue, redMask=None, redMask1=None, redMask2=None):
+	if redMask1 == None or redMask1.shape!=hue.shape:
+		redMask1 = numpy.zeros(hue.shape, numpy.uint8) 
+	if redMask2 == None or redMask2.shape!=hue.shape:
+		redMask2 = numpy.zeros(hue.shape, numpy.uint8) 
+	if redMask == None or redMask.shape!=hue.shape:
+		redMask  = numpy.zeros(hue.shape, numpy.uint8) 
+	cv2.threshold(hue, redHueMin, 255, cv2.THRESH_BINARY_INV, redMask1)
+	cv2.threshold(hue, redHueMax, 255, cv2.THRESH_BINARY, redMask2)
+	if redHueMin > redHueMax: #hue wraps around; in this case we want the AND of the two masks
+		cv2.min(redMask1, redMask2, redMask)
+	else: #min < max --> we want the OR of the two masks
+		cv2.max(redMask1, redMask2, redMask)
+	return (redMask, redMask1, redMask2)
+
 if __name__ == '__main__':
 	for fileName in sys.argv[1:]:
 		#load image and shrink to a reasonable size
@@ -50,35 +87,16 @@ if __name__ == '__main__':
 		smallImg = cv2.resize(img, None, None, .1, .1)
 
 		#Display HSV channels
-		hsv = numpy.zeros(smallImg.shape, numpy.uint8)
-		hue = numpy.zeros(smallImg.shape[:2], numpy.uint8)
-		sat = numpy.zeros(smallImg.shape[:2], numpy.uint8)
-		val = numpy.zeros(smallImg.shape[:2], numpy.uint8)
-		cv2.cvtColor(smallImg, cv2.COLOR_BGR2HSV, hsv)
-		cv2.split(hsv, (hue, sat, val))
+		hsv = hue = sat = val = None 
+		hsv, hue, sat, val = getHSV(smallImg, hsv, hue, sat, val)
 
 		#require that the hue is red; note that this mask has 0 for red pixels and 255 for non-red
-		redMask1 = numpy.zeros(hue.shape, numpy.uint8) 
-		redMask2 = numpy.zeros(hue.shape, numpy.uint8) 
-		redMask  = numpy.zeros(hue.shape, numpy.uint8) 
-		cv2.threshold(hue, redHueMin, 255, cv2.THRESH_BINARY_INV, redMask1)
-		cv2.threshold(hue, redHueMax, 255, cv2.THRESH_BINARY, redMask2)
-		if redHueMin > redHueMax: #hue wraps around; in this case we want the AND of the two masks
-			cv2.min(redMask1, redMask2, redMask)
-		else: #min < max --> we want the OR of the two masks
-			cv2.max(redMask1, redMask2, redMask)
+		redMask = redMask1 = redMask2  = None
+		redMask, redMask1, redMask2 = genRedMask(hue, redMask, redMask1, redMask2)
 
 		#Threshold for sufficiently small red distance
-		#imperically determined 90 is a good threshold
-		redDist = numpy.zeros(hue.shape, numpy.uint8)
-		distFromColor(redDist, hue, sat, val, redHue, redSat, redVal, 1, 1, 1)
-
-		redMaskedDist = numpy.zeros(hue.shape, numpy.uint8)
-		cv2.max(redDist, redMask, redMaskedDist)
-
-		#Combine masks for final red ball mask
-		redImg = numpy.zeros(redMask.shape, numpy.uint8)
-		cv2.threshold(redMaskedDist, 90, 255, cv2.THRESH_BINARY_INV, redImg)
+		redDist = redMaskedDist = redImg = None
+		redDist, redMaskedDist, redImg = distFromColor(redDist,redMaskedDist, redMask, redImg, hue, sat, val, redHue, redSat, redVal, 1, 1, 1)
 		displayImage("red", redImg)
 
 		#Find blobs in red image
