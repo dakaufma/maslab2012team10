@@ -80,57 +80,79 @@ def genRedMask(hue, redMask=None, redMask1=None, redMask2=None):
 		cv2.max(redMask1, redMask2, redMask)
 	return (redMask, redMask1, redMask2)
 
+
+
+def processImg(img, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2):
+	#Display HSV channels
+	hsv, hue, sat, val = getHSV(img, hsv, hue, sat, val);
+
+	#require that the hue is red; note that this mask has 0 for red pixels and 255 for non-red
+	redMask, redMask1, redMask2 = genRedMask(hue, redMask, redMask1, redMask2);
+
+	#Threshold for sufficiently small red distance
+	redDist, redMaskedDist, redImg = distFromColor(redDist, redMaskedDist, redMask, redImg, hue, sat, val, redHue, redSat, redVal, 1, 1, 1);
+	displayImage("red", redImg);
+
+	#Find blobs in red image
+	contours, hierarchy = cv2.findContours(redImg, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE);
+	nextLargest = None
+	nextArea = 0
+	index = 0
+	for contour in contours:
+		area = cv2.contourArea(contour)
+		if area > 100: #minimum area imperically determined
+			print area
+			(x,y), radius = cv2.minEnclosingCircle(contour)
+			cv2.circle(img,(int(x),int(y)), int(radius), (255,0,0), 3)
+			#cv2.drawContours(smallImg, contours, index, (255,0,0), 3)
+		elif area>nextArea:
+			nextArea = area
+			nextLargest = index
+		index += 1
+	if nextArea>0:
+		print "Next largest: "+str(nextArea)
+		cv2.drawContours(img, contours, nextLargest, (0,255,0), 3)
+	print "-------------------------------"
+
+	displayImage("ball detection", img)
+	displayImage("hue", hue)
+	displayImage("sat", sat)
+	displayImage("val", val)
+	displayImage("red mask", redMask)
+	displayImage("red dist", redDist)
+	displayImage("red masked dist", redMaskedDist)
+
+	return hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2
+
 if __name__ == '__main__':
-	for fileName in sys.argv[1:]:
-		#load image and shrink to a reasonable size
-		img = cv2.imread(fileName)
-		smallImg = cv2.resize(img, None, None, .1, .1)
+	hsv = hue = sat = val = redDist = redMaskedDist = redImg = redMask = redMask1 = redMask2 = None
+	if len(sys.argv) > 1: #read images from files listed on the command line
+		for fileName in sys.argv[1:]:
+			#load image and shrink to a reasonable size
+			img = cv2.imread(fileName)
+			smallImg = cv2.resize(img, None, None, .1, .1)
 
-		#Display HSV channels
-		hsv = hue = sat = val = None 
-		hsv, hue, sat, val = getHSV(smallImg, hsv, hue, sat, val)
+			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2)
 
-		#require that the hue is red; note that this mask has 0 for red pixels and 255 for non-red
-		redMask = redMask1 = redMask2  = None
-		redMask, redMask1, redMask2 = genRedMask(hue, redMask, redMask1, redMask2)
+			key = cv2.waitKey()
+			if key == 113:
+				break
+		cv2.destroyAllWindows()
+	else: #read images from the camera
+		camera = cv2.VideoCapture(1);
+		smallImg = None
+		scale = .25
+		while True:
+			f,img = camera.read();
+			if smallImg==None:
+				smallImg = numpy.zeros((img.shape[0]*scale, img.shape[1]*scale, img.shape[2]), numpy.uint8)
+			displayImage("camera", smallImg);
 
-		#Threshold for sufficiently small red distance
-		redDist = redMaskedDist = redImg = None
-		redDist, redMaskedDist, redImg = distFromColor(redDist,redMaskedDist, redMask, redImg, hue, sat, val, redHue, redSat, redVal, 1, 1, 1)
-		displayImage("red", redImg)
+			cv2.resize(img, None, smallImg, .25, .25)
 
-		#Find blobs in red image
-		contours, hierarchy = cv2.findContours(redImg, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-		nextLargest = None
-		nextArea = 0
-		index = 0
-		for contour in contours:
-			area = cv2.contourArea(contour)
-			if area > 100: #minimum area imperically determined
-				print area
-				(x,y), radius = cv2.minEnclosingCircle(contour)
-				cv2.circle(smallImg,(int(x),int(y)), int(radius), (255,0,0), 3)
-				#cv2.drawContours(smallImg, contours, index, (255,0,0), 3)
-			elif area>nextArea:
-				nextArea = area
-				nextLargest = index
-			index += 1
-		if nextArea>0:
-			print "Next largest: "+str(nextArea)
-			cv2.drawContours(smallImg, contours, nextLargest, (0,255,0), 3)
-		print "-------------------------------"
+			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2)
 
-
-
-		displayImage("ball detection", smallImg)
-		displayImage("hue", hue)
-		displayImage("sat", sat)
-		displayImage("val", val)
-		displayImage("red mask", redMask)
-		displayImage("red dist", redDist)
-		displayImage("red masked dist", redMaskedDist)
-		key = cv2.waitKey()
-		if key == 113:
-			break
-	cv2.destroyAllWindows()
+			if cv2.waitKey(1)==113:
+				break
+	
 
