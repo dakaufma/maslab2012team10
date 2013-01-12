@@ -8,12 +8,18 @@ import math
 import numpy
 
 redHue = 0
+redHueMin = 170
+redHueMax = 15
 redSat = 255
 redVal = 255
-redHueMax = 15
-redHueMin = 170
 
-def distFromColor(distImg, maskedDistImg, mask, binImg, hue, sat, val, colorHue, colorSat, colorVal, hueWeight=1, satWeight=1, valWeight=1):
+greenHue = 60
+greenHueMin = 45
+greenHueMax = 75
+greenSat = 255
+greenVal = 255
+
+def distFromColor(distImg, maskedDistImg, mask, binImg, distThreshold, hue, sat, val, colorHue, colorSat, colorVal, hueWeight=1, satWeight=1, valWeight=1):
 	if distImg  == None or distImg.shape != hue.shape:
 		distImg = numpy.zeros(hue.shape, numpy.uint8)
 	if maskedDistImg == None or maskedDistImg.shape!=hue.shape:
@@ -39,7 +45,7 @@ def distFromColor(distImg, maskedDistImg, mask, binImg, hue, sat, val, colorHue,
 				h-=180
 			distImg.itemset((row, col), math.sqrt(h*h*hueWeight + s*s*satWeight + v*v*valWeight))
 	cv2.max(distImg, mask, maskedDistImg)
-	cv2.threshold(maskedDistImg, 90, 255, cv2.THRESH_BINARY_INV, binImg) #imperically determined 90 is a good threshold
+	cv2.threshold(maskedDistImg, distThreshold, 255, cv2.THRESH_BINARY_INV, binImg) 
 	return distImg, maskedDistImg, binImg
 			
 
@@ -65,74 +71,87 @@ def getHSV(img, hsv=None, hue=None, sat=None, val=None):
 	cv2.split(hsv, (hue, sat, val))
 	return (hsv, hue, sat, val)
 
-def genRedMask(hue, redMask=None, redMask1=None, redMask2=None):
-	if redMask1 == None or redMask1.shape!=hue.shape:
-		redMask1 = numpy.zeros(hue.shape, numpy.uint8) 
-	if redMask2 == None or redMask2.shape!=hue.shape:
-		redMask2 = numpy.zeros(hue.shape, numpy.uint8) 
-	if redMask == None or redMask.shape!=hue.shape:
-		redMask  = numpy.zeros(hue.shape, numpy.uint8) 
-	cv2.threshold(hue, redHueMin, 255, cv2.THRESH_BINARY_INV, redMask1)
-	cv2.threshold(hue, redHueMax, 255, cv2.THRESH_BINARY, redMask2)
-	if redHueMin > redHueMax: #hue wraps around; in this case we want the AND of the two masks
-		cv2.min(redMask1, redMask2, redMask)
+def genColorMask(hue, colorHueMin, colorHueMax, colorMask=None, colorMask1=None, colorMask2=None):
+	if colorMask1 == None or colorMask1.shape!=hue.shape:
+		colorMask1 = numpy.zeros(hue.shape, numpy.uint8) 
+	if colorMask2 == None or colorMask2.shape!=hue.shape:
+		colorMask2 = numpy.zeros(hue.shape, numpy.uint8) 
+	if colorMask == None or colorMask.shape!=hue.shape:
+		colorMask  = numpy.zeros(hue.shape, numpy.uint8) 
+	cv2.threshold(hue, colorHueMin, 255, cv2.THRESH_BINARY_INV, colorMask1)
+	cv2.threshold(hue, colorHueMax, 255, cv2.THRESH_BINARY, colorMask2)
+	if colorHueMin > colorHueMax: #hue wraps around; in this case we want the AND of the two masks
+		cv2.min(colorMask1, colorMask2, colorMask)
 	else: #min < max --> we want the OR of the two masks
-		cv2.max(redMask1, redMask2, redMask)
-	return (redMask, redMask1, redMask2)
+		cv2.max(colorMask1, colorMask2, colorMask)
+	return (colorMask, colorMask1, colorMask2)
 
+def findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, colorHue, colorHueMin, colorHueMax, colorSat, colorVal, windowNamePrefix="", debug=True):
+	#require that the hue is <color>; note that this mask has 0 for <color> pixels and 255 for non-<color>
+	colorMask, colorMask1, colorMask2 = genColorMask(hue, colorHueMin, colorHueMax, colorMask, colorMask1, colorMask2);
+	if debug:
+		displayImage(windowNamePrefix + "mask", colorMask)
 
+	#Threshold for sufficiently small <color> distance
+	colorDist, colorMaskedDist, colorImg = distFromColor(colorDist, colorMaskedDist, colorMask, colorImg, distThreshold, hue, sat, val, colorHue, colorSat, colorVal, 2, 1, 0);
+	if debug:
+		displayImage(windowNamePrefix + "dist", colorDist)
+		displayImage(windowNamePrefix + "masked dist", colorMaskedDist)
+		displayImage(windowNamePrefix + "binary by hue", colorImg);
 
-def processImg(img, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2):
-	#Display HSV channels
-	hsv, hue, sat, val = getHSV(img, hsv, hue, sat, val);
-
-	#require that the hue is red; note that this mask has 0 for red pixels and 255 for non-red
-	redMask, redMask1, redMask2 = genRedMask(hue, redMask, redMask1, redMask2);
-
-	#Threshold for sufficiently small red distance
-	redDist, redMaskedDist, redImg = distFromColor(redDist, redMaskedDist, redMask, redImg, hue, sat, val, redHue, redSat, redVal, 1, 1, 1);
-	displayImage("red", redImg);
-
-	#Find blobs in red image
-	contours, hierarchy = cv2.findContours(redImg, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE);
+	#Find blobs in <color> image
+	contours, hierarchy = cv2.findContours(colorImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE);
 	nextLargest = None
 	nextArea = 0
 	index = 0
+	balls = []
 	for contour in contours:
 		area = cv2.contourArea(contour)
-		if area > 100: #minimum area imperically determined
-			print area
+		if area > minArea:
 			(x,y), radius = cv2.minEnclosingCircle(contour)
-			cv2.circle(img,(int(x),int(y)), int(radius), (255,0,0), 3)
-			#cv2.drawContours(smallImg, contours, index, (255,0,0), 3)
+			balls.append( (x,y,radius, contour) )
+			if debug:
+				print area
+				cv2.circle(img,(int(x),int(y)), int(radius), (255,0,0), 3)
 		elif area>nextArea:
 			nextArea = area
 			nextLargest = index
 		index += 1
-	if nextArea>0:
-		print "Next largest: "+str(nextArea)
-		cv2.drawContours(img, contours, nextLargest, (0,255,0), 3)
-	print "-------------------------------"
+	if debug:
+		if nextArea>0:
+			print "Next largest: "+str(nextArea)
+			cv2.drawContours(img, contours, nextLargest, (0,255,0), 3)
+		print "-------------------------------"
+		displayImage("ball detection", img)
+	return colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, balls
 
-	displayImage("ball detection", img)
+def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea):
+	#get HSV channels
+	hsv, hue, sat, val = getHSV(img, hsv, hue, sat, val);
 	displayImage("hue", hue)
 	displayImage("sat", sat)
 	displayImage("val", val)
-	displayImage("red mask", redMask)
-	displayImage("red dist", redDist)
-	displayImage("red masked dist", redMaskedDist)
+
+	#find red balls
+	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", True)
+
+
+	#find green balls
+#	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", True)
 
 	return hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2
 
 if __name__ == '__main__':
 	hsv = hue = sat = val = redDist = redMaskedDist = redImg = redMask = redMask1 = redMask2 = None
 	if len(sys.argv) > 1: #read images from files listed on the command line
+		distThreshold = 90 # empirically determined; works pretty well for reference images
+		minArea = 100 # empirically determined; works pretty well for reference images
 		for fileName in sys.argv[1:]:
 			#load image and shrink to a reasonable size
 			img = cv2.imread(fileName)
 			smallImg = cv2.resize(img, None, None, .1, .1)
 
-			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2)
+			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
 
 			key = cv2.waitKey()
 			if key == 113:
@@ -142,17 +161,25 @@ if __name__ == '__main__':
 		camera = cv2.VideoCapture(1);
 		smallImg = None
 		scale = .25
+		distThreshold = 80 # empirically determined
+		minArea = 25 # empirically determined
 		while True:
 			f,img = camera.read();
 			if smallImg==None:
 				smallImg = numpy.zeros((img.shape[0]*scale, img.shape[1]*scale, img.shape[2]), numpy.uint8)
-			displayImage("camera", smallImg);
 
 			cv2.resize(img, None, smallImg, .25, .25)
 
-			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2)
+			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
 
-			if cv2.waitKey(1)==113:
+			key = cv2.waitKey(1)
+			if key == 113:
 				break
+			elif key == 112: # press 'p' to pause
+				key = 0
+				while key != 112 and key != 113: # press 'p' again to resume; 'q' still quits
+					key = cv2.waitKey(0)
+				if key == 113:
+					break
 	
 
