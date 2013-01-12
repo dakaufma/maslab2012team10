@@ -34,16 +34,21 @@ def distFromColor(distImg, maskedDistImg, mask, binImg, distThreshold, hue, sat,
 	hi = hue.item
 	si = sat.item
 	vi = val.item
+	mi = mask.item
+	di = distImg.itemset
 	for row in xrange(0,distImg.shape[0]):
 		for col in xrange(0,distImg.shape[1]):
-			h = hi(row, col) - colorHue
-			s = si(row, col) - colorSat
-			v = vi(row, col) - colorVal
-			if h < -90:
-				h+=180
-			elif h > 90:
-				h-=180
-			distImg.itemset((row, col), math.sqrt(h*h*hueWeight + s*s*satWeight + v*v*valWeight))
+			if mi(row, col) != 0:
+				di((row, col), 255)
+			else:
+				h = hi(row, col) - colorHue
+				s = si(row, col) - colorSat
+				v = vi(row, col) - colorVal
+				if h < -90:
+					h+=180
+				elif h > 90:
+					h-=180
+				di((row, col), math.sqrt(h*h*hueWeight + s*s*satWeight + v*v*valWeight))
 	cv2.max(distImg, mask, maskedDistImg)
 	cv2.threshold(maskedDistImg, distThreshold, 255, cv2.THRESH_BINARY_INV, binImg) 
 	return distImg, maskedDistImg, binImg
@@ -133,11 +138,11 @@ def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, co
 	displayImage("val", val)
 
 	#find red balls
-	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", True)
+#	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", True)
 
 
 	#find green balls
-#	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", True)
+	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", True)
 
 	return hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2
 
