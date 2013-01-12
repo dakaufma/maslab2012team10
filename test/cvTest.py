@@ -114,7 +114,9 @@ def findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, col
 		area = cv2.contourArea(contour)
 		if area > minArea:
 			(x,y), radius = cv2.minEnclosingCircle(contour)
-			balls.append( (x,y,radius, contour) )
+			angle = 78 * (x-img.shape[0]/2) / img.shape[0]
+			print angle
+			balls.append( (angle, x, y, radius, contour) )
 			if debug:
 				print area
 				cv2.circle(img,(int(x),int(y)), int(radius), (255,0,0), 3)
@@ -130,19 +132,20 @@ def findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, col
 		displayImage("ball detection", img)
 	return colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, balls
 
-def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea):
+def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, debug=False):
 	#get HSV channels
 	hsv, hue, sat, val = getHSV(img, hsv, hue, sat, val);
-	displayImage("hue", hue)
-	displayImage("sat", sat)
-	displayImage("val", val)
+	if debug:
+		displayImage("hue", hue)
+		displayImage("sat", sat)
+		displayImage("val", val)
 
 	#find red balls
-#	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", True)
+#	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", debug)
 
 
 	#find green balls
-	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", True)
+	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, greenBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", debug)
 
 	return hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2
 
@@ -178,7 +181,7 @@ if __name__ == '__main__':
 			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
 
 			key = cv2.waitKey(1)
-			if key == 113:
+			if key == 113: # press 'q' to exit
 				break
 			elif key == 112: # press 'p' to pause
 				key = 0
