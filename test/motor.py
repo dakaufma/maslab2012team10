@@ -13,18 +13,18 @@ ard.run()  # Start the Arduino communication thread
 
 while True:
 	print "forward"
-	right.setSpeed(127)
 	left.setSpeed(127)
+	right.setSpeed(127)
 	time.sleep(sleepTime)
 	print "stop"
-	right.setSpeed(0)
 	left.setSpeed(0)
+	right.setSpeed(0)
 	time.sleep(sleepTime)
 	print "back"
-	right.setSpeed(-127)
 	left.setSpeed(-127)
+	right.setSpeed(-127)
 	time.sleep(sleepTime)
 	print "stop"
-	right.setSpeed(0)
 	left.setSpeed(0)
+	right.setSpeed(0)
 	time.sleep(sleepTime)

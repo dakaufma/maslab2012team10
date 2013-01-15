@@ -1,14 +1,3 @@
-Python 2.7.3 (default, Apr 10 2012, 23:31:26) [MSC v.1500 32 bit (Intel)] on win32
-Type "copyright", "credits" or "license()" for more information.
->>> __author__ = "Robert Unguran"
-__copyright__ = "Copyright 2012"
-__credits__ = ["Robert Unguran"]
-__license__ = "GPL"
-__version__ = "1.0.0"
-__maintainer__ = "Robert Unguran"
-__email__ = "unguranr@gmail.com"
-__status__ = "Under Development"
-
 import time, sys
 class PID:
 	def __init__(self, KP=2.0, KI=10.0, KD=0.001, I_max=1000, I_min= -1000, U_max=500, U_min= -500):
@@ -43,6 +32,9 @@ class PID:
 		self.__derivative	 = 0
 		
 		self.__dt = 0;
+
+	def reset(self):
+		self.__init__(self.Kp, self.Ki, self.Kd, self.I_max, self.I_min, self.U_max, self.U_min)
 		
 	def run(self, error, Ts=None):
 		"""

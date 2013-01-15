@@ -116,7 +116,7 @@ def findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, col
 			(x,y), radius = cv2.minEnclosingCircle(contour)
 			angle = 78 * (x-img.shape[0]/2) / img.shape[0]
 			print angle
-			balls.append( (angle, x, y, radius, contour) )
+			balls.append( (angle, x, y, radius, area, contour) )
 			if debug:
 				print area
 				cv2.circle(img,(int(x),int(y)), int(radius), (255,0,0), 3)
@@ -141,13 +141,14 @@ def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, co
 		displayImage("val", val)
 
 	#find red balls
-#	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", debug)
+	redBalls = greenBalls = None
+	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", debug)
 
 
 	#find green balls
 	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, greenBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", debug)
 
-	return hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2
+	return hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls, greenBalls
 
 if __name__ == '__main__':
 	hsv = hue = sat = val = redDist = redMaskedDist = redImg = redMask = redMask1 = redMask2 = None
@@ -159,7 +160,7 @@ if __name__ == '__main__':
 			img = cv2.imread(fileName)
 			smallImg = cv2.resize(img, None, None, .1, .1)
 
-			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
+			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, redBalls, greenBalls = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
 
 			key = cv2.waitKey()
 			if key == 113:
@@ -178,7 +179,7 @@ if __name__ == '__main__':
 
 			cv2.resize(img, None, smallImg, .25, .25)
 
-			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2 = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
+			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, redBalls, greenBalls = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea, True)
 
 			key = cv2.waitKey(1)
 			if key == 113: # press 'q' to exit
