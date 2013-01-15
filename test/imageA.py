@@ -2,9 +2,10 @@ import cv2
 import time
 import threading
 class imageA(threading.Thread):
-	def __init__(self):
+	def __init__(self, obj):
         	threading.Thread.__init__(self)
 		self._stop = threading.Event()
+		self._obj = obj
 
 	def stop(self):
 		self._stop.set()
@@ -20,6 +21,7 @@ class imageA(threading.Thread):
 				while not stopped:
 					try:
 						f,img = camera.read();
+						obj.setObject(obj)
 					except(KeyboardInterrupt):
 						stopped.self()
 						print "Image acquision thread exiting on keyoard interupt"

@@ -1,6 +1,7 @@
 # This class shares an obj between 2 threads in a thread-safe manner
 
 import threading
+import time as systime
 
 class SharedObject:
 	def __init__:
@@ -15,7 +16,9 @@ class SharedObject:
 		self._lock.release()
 		return time, obj
 
-	def setObject(obj, time):
+	def setObject(obj, time=None):
+		if time==None:
+			time = systime.time()
 		self._lock.acquire()
 		self._obj = obj
 		self._time = time
