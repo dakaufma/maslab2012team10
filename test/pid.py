@@ -24,7 +24,7 @@ greenSat = 255
 greenVal = 255
 
 
-MIN_DIST = 15 #cm
+MIN_DIST = 25 #cm
 
 def getDistance(irVoltage):
         #See datasheet; there is a (mostly) linear relationship between voltage and (1/distance) for distances from 7 cm to 80 cm.
@@ -54,10 +54,10 @@ if __name__ == '__main__':
 		distThreshold = 80 # empirically determined
 		minArea = 25 # empirically determined
 
-		pid = PID(1.0, 0, 0, 1000, -1000, 127, -127)
+		pid = PID(1.0, .1, 0, 500, -500, 127, -127)
 		pidLastTime = 0
-		searchSpeed = 100
-		approachSpeed = 50
+		searchSpeed = 127
+		approachSpeed = 80
 		currentlyTurning = False
 		currentlyAvoidingWall = False
 
@@ -109,10 +109,9 @@ if __name__ == '__main__':
 						pidLastTime = pidCurrentTime
 						rightSpeed = approachSpeed - pidOutput
 						leftSpeed = approachSpeed + pidOutput
-						if abs(leftSpeed) > 127 or abs(rightSpeed)>127:
-							tmp = max(abs(leftSpeed), abs(rightSpeed))
-							leftSpeed = leftSpeed*127/tmp
-							rightSpeed = rightSpeed*127/tmp
+						tmp = max(abs(leftSpeed), abs(rightSpeed), 127)
+						leftSpeed = leftSpeed*127/tmp
+						rightSpeed = rightSpeed*127/tmp
 						debugStr += str(int(pidOutput)) + "\t" + str(angle) + "\t"
 					currentlyTurning = True
 				else:
@@ -128,13 +127,13 @@ if __name__ == '__main__':
 				if rightDist < MIN_DIST:
 					debugStr += "avoiding a wall; right side\t" + str(rightDist) + "\t"
 					currentlyAvoidingWall = True
-					rightSpeed = 0
+					rightSpeed = 40
 					leftSpeed = -127
 				elif leftDist < MIN_DIST:
 					debugStr += "avoiding a wall; left side\t" + str(leftDist) + "\t"
 					currentlyAvoidingWall = True
 					rightSpeed = -127
-					leftSpeed = 0
+					leftSpeed = 40
 				else:
 					currentlyAvoidingWall = False
 			else:
@@ -142,7 +141,7 @@ if __name__ == '__main__':
 				debugStr+= "no reading\t"
 			debugStr += str(rightSpeed) + "\t" + str(leftSpeed)
 
-			print debugStr
+			#print debugStr
 			right.setSpeed(-rightSpeed)
 			left.setSpeed(leftSpeed)
 

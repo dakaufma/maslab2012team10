@@ -73,6 +73,8 @@ class PID:
 		
 		# Sum
 		U = self.Kp * error + self.Ki * self.__integral + self.__derivative
+
+		print self.__integral
 		
 		# Signal limitation
 		if(U > self.U_max):
