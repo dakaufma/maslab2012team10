@@ -75,10 +75,9 @@ if __name__ == '__main__':
 		while time.time() - startTime < 3 * 60:
 			debugStr = ""
 
-			f,img = camera.read();
-
 			leftSpeed = rightSpeed = searchSpeed
 			if not currentlyAvoidingWall: #don't process images while aoviding walls; it slows code down too much. TODO use threads
+				f,img = camera.read();
 				if smallImg==None:
 					smallImg = numpy.zeros((img.shape[0]*scale, img.shape[1]*scale, img.shape[2]), numpy.uint8)
 
