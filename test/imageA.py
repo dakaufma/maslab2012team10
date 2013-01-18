@@ -1,7 +1,7 @@
 import cv2
-import stopableThread
+import stoppableThread
 
-class imageA(StopableThread):
+class imageA(StoppableThread):
 	def safeRun(self):
 		f,img = self.camera.read();
 		self.obj.setObject(img)

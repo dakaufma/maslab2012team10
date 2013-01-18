@@ -1,4 +1,3 @@
-import threading
 
 class Ball:
 	def __init(self):

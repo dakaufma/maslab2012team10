@@ -7,7 +7,7 @@ This class implements a few extra features that we want all of our maslab thread
 	It provides a cleanup mechanism for closing communication channels, etc
 This class should be overriden; in particular it has three methods that must be overriden.
 """
-class StopableThread(threading.Thread):
+class StoppableThread(threading.Thread):
 	def __init__(self, obj):
 		self.stop = threading.Event()
 		self.obj = obj
