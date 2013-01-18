@@ -115,9 +115,9 @@ def findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, col
 		if area > minArea:
 			(x,y), radius = cv2.minEnclosingCircle(contour)
 			angle = 78 * (x-img.shape[0]/2) / img.shape[0]
-			print angle
 			balls.append( (angle, x, y, radius, area, contour) )
 			if debug:
+				print angle
 				print area
 				cv2.circle(img,(int(x),int(y)), int(radius), (255,0,0), 3)
 		elif area>nextArea:

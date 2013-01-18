@@ -41,6 +41,7 @@ if __name__ == '__main__':
 	left = arduino.Motor(ard, 15, 43, 3)
 	irRight = arduino.AnalogInput(ard, 0)  # Create an analog sensor on pin A0
 	irLeft = arduino.AnalogInput(ard, 1)
+	arduino.DigitalOutput(ard, 5).setValue(0)
 	startButton = arduino.DigitalInput(ard, 5) # arduino, pin number
 	ard.run()
 
@@ -55,27 +56,29 @@ if __name__ == '__main__':
 
 		pid = PID(1.0, 0, 0, 1000, -1000, 127, -127)
 		pidLastTime = 0
-		forwardSpeed = 100
-		maxAngleError = 15
+		searchSpeed = 100
+		approachSpeed = 50
 		currentlyTurning = False
 		currentlyAvoidingWall = False
-		camera.read(); # guessing that the first call to read() takes a few seconds and that subsequent ones are fast --> call it now before the timer starts
 
 		#wait for a falling edge on the start button
 		previousStartVal = False
 		startVal = False
+		print "Press the button to start"
 		while (not (previousStartVal and not startVal)):
 			previousStartVal = startVal
 			startVal = startButton.getValue()
+			time.sleep(.1)
 
 		startTime = time.time()
 
 		while time.time() - startTime < 3 * 60:
+			debugStr = ""
+
 			f,img = camera.read();
 
-			leftSpeed = rightSpeed = forwardSpeed
+			leftSpeed = rightSpeed = searchSpeed
 			if not currentlyAvoidingWall: #don't process images while aoviding walls; it slows code down too much. TODO use threads
-				print "not avoiding a wall"
 				if smallImg==None:
 					smallImg = numpy.zeros((img.shape[0]*scale, img.shape[1]*scale, img.shape[2]), numpy.uint8)
 
@@ -88,28 +91,32 @@ if __name__ == '__main__':
 
 				#vision --> follow balls
 				if len(greenBalls) > 0:
-					print "found a ball"
+					debugStr += "found a ball\t"
 					closestBall = None
 					for ball in greenBalls:
 						if closestBall == None or ball[3] > closestBall[3]: # index 3 is radius; TODO make ball a class so you can refer to attributes by name
 							closestBall = ball
 
 					angle = ball[0]
-					if angle < maxAngleError: #lined up enough; just approach straight
-						rightSpeed = forwardSpeed
-						leftSpeed = forwardSpeed
-					else: #too far out of line; turn in place to line up
-						if not currentlyTurning:
-							pid.reset()
-							pidLastTime = time.time()
-							#don't change right speed or left speed until the next iteration, when we have a delta t
-						else:
-							pidCurrentTime = time.time()
-							output = pid.run(angle, pidCurrentTime - pidLastTime)
-							pidLastTime = pidCurrentTime
-							rightSpeed = output
-							leftSpeed = output
-							print str(int(output)) + "\t" + str(angle)
+					debugStr += str(angle) +"\t"
+					if not currentlyTurning:
+						pid.reset()
+						pidLastTime = time.time()
+						#don't change right speed or left speed until the next iteration, when we have a delta t
+					else:
+						pidCurrentTime = time.time()
+						pidOutput = int(pid.run(angle, pidCurrentTime - pidLastTime))
+						pidLastTime = pidCurrentTime
+						rightSpeed = approachSpeed - pidOutput
+						leftSpeed = approachSpeed + pidOutput
+						if abs(leftSpeed) > 127 or abs(rightSpeed)>127:
+							tmp = max(abs(leftSpeed), abs(rightSpeed))
+							leftSpeed = leftSpeed*127/tmp
+							rightSpeed = rightSpeed*127/tmp
+						debugStr += str(int(pidOutput)) + "\t" + str(angle) + "\t"
+					currentlyTurning = True
+				else:
+					currentlyTurning = False
 
 			#avoid walls
 			rightVal = irRight.getValue() 
@@ -119,35 +126,26 @@ if __name__ == '__main__':
 				leftDist = getDistance(leftVal*5.0/1023)
 				
 				if rightDist < MIN_DIST:
-					print "avoiding a wall; right side\t" + str(rightDist)
+					debugStr += "avoiding a wall; right side\t" + str(rightDist) + "\t"
 					currentlyAvoidingWall = True
 					rightSpeed = 0
 					leftSpeed = -127
 				elif leftDist < MIN_DIST:
-					print "avoiding a wall; left side\t" + str(leftDist)
+					debugStr += "avoiding a wall; left side\t" + str(leftDist) + "\t"
 					currentlyAvoidingWall = True
 					rightSpeed = -127
 					leftSpeed = 0
 				else:
 					currentlyAvoidingWall = False
-					print "not avoiding a wall"
-				
 			else:
 				leftSpeed = rightSpeed = 0
-				print "no reading"
-			print str(rightSpeed) + "\t" + str(leftSpeed)
-			right.setSpeed(rightSpeed)
+				debugStr+= "no reading\t"
+			debugStr += str(rightSpeed) + "\t" + str(leftSpeed)
+
+			print debugStr
+			right.setSpeed(-rightSpeed)
 			left.setSpeed(leftSpeed)
 
-			key = cv2.waitKey(1)
-			if key == 113: # press 'q' to exit
-				break
-			elif key == 112: # press 'p' to pause
-				key = 0
-				while key != 112 and key != 113: # press 'p' again to resume; 'q' still quits
-					key = cv2.waitKey(0)
-				if key == 113:
-					break
 	finally:
 		right.setSpeed(0)
 		left.setSpeed(0)
