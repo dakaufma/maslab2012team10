@@ -1,10 +1,10 @@
 
 class Ball:
-	def __init(self):
-		self.angle = None
-		self.distance = None
-		self.color = None
-		self.time = None
+	def __init(self, angle=None, isRed=None, time=None, distance=None):
+		self.angle = angle
+		self.distance = distance
+		self.isRed = isRed
+		self.time = time
 
 	def setDistance(self, dist):
 		self.distance = dist
@@ -18,11 +18,11 @@ class Ball:
 	def getAngle(self):
 		return self.angle
 
-	def setColor(self, c):
-		self.color = c
+	def setRed(self, isRed):
+		self.isRed = isRed
 
-	def getColor(self):
-		return self.color
+	def isRed(self):
+		return self.isRed
 
 	def getTime(self):
 		return self.time

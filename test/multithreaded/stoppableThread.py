@@ -8,14 +8,20 @@ This class implements a few extra features that we want all of our maslab thread
 This class should be overriden; in particular it has three methods that must be overriden.
 """
 class StoppableThread(threading.Thread):
-	def __init__(self, obj):
+	def __init__(self):
 		self.stop = threading.Event()
-		self.obj = obj
+		self.obj = SharedObject()
         	threading.Thread.__init__(self)
 
+	"""
+	Stops the thread at the end of the next loop iteration
+	"""
 	def stop(self):
 		self.stop.set()
 
+	"""
+	returns True if the thread has been commanded to stop
+	"""
 	def stopped(self):
 		return self.stop.isSet()
 	
