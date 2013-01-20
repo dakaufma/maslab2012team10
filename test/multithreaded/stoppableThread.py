@@ -1,4 +1,7 @@
 import threading
+import traceback
+import time
+from sharedObject import SharedObject
 
 """
 This class implements a few extra features that we want all of our maslab threads to have.
@@ -9,14 +12,14 @@ This class should be overriden; in particular it has three methods that must be 
 """
 class StoppableThread(threading.Thread):
 	def __init__(self):
+		super(StoppableThread, self).__init__()
 		self.stop = threading.Event()
 		self.obj = SharedObject()
-        	threading.Thread.__init__(self)
 
 	"""
 	Stops the thread at the end of the next loop iteration
 	"""
-	def stop(self):
+	def stopThread(self):
 		self.stop.set()
 
 	"""
@@ -44,15 +47,19 @@ class StoppableThread(threading.Thread):
 		raise NotImplementedError  
 
 	def run(self):
-		while not self.stopped: # always loop unless you've been stopped
+		while not self.stopped(): # always loop unless you've been stopped
 			try: # catches fatal exceptions so the thread can be restarted with its normal initialization
 				self.safeInit()
 				while not self.stopped(): # initialized; normal post-initialization loop
-					safeRun() # sub-class runs stuff; if there is an exception it will be restarted
+					self.safeRun() # sub-class runs stuff; if there is an exception it will be restarted
+			except KeyboardInterrupt:
+				self.stop()
+				raise
 			except Exception as e:
 				print self.name + " encountered a fatal error and will be restarted:"
-				print "{0}: {1}".format(e.errno, e.strerror)
+				traceback.print_exc()
 
 			finally:
 				self.cleanup()
+			time.sleep(2) # should only matter if threads consistently generate error messages
 			

@@ -1,156 +1,126 @@
-#!/usr/bin/python
-
-#uses ball detection from cvTest and PID control to drive the robot towards balls
-
-from cvTest import processImg
 from discretePID import PID
-import cv2
-import numpy
-import sys
-sys.path.append("..")
+from stoppableThread import StoppableThread
+from arduinoIO import *
 import time
-import arduino
 
-redHue = 0
-redHueMin = 170
-redHueMax = 15
-redSat = 255
-redVal = 255
+class StateMachineThread(StoppableThread):
+	"""Represents a state machine"""
 
-greenHue = 60
-greenHueMin = 45
-greenHueMax = 75
-greenSat = 255
-greenVal = 255
+	def __init__(self, initialState, arduinoInput, visionInput, arduinoOutput):
+		super(StateMachineThread, self).__init__()
+		self.initialState = initialState
+		self.arduinoInput = arduinoInput
+		self.arduinoOutput = arduinoOutput
+		self.visionInput = visionInput
+		self.name = "StateMachine"
 
+	def safeInit(self):
+		self.state = self.initialState
+		self.previousState = None
 
-MIN_DIST = 15 #cm
+	def safeRun(self):
+		if self.previousState != self.state:
+			print "Changed states: " + str(self.state)
+		self.previousState = self.state
 
-def getDistance(irVoltage):
-        #See datasheet; there is a (mostly) linear relationship between voltage and (1/distance) for distances from 7 cm to 80 cm.
-        if irVoltage < .7321:
-                return 80 #readings are inaccurate after 80 cm
-	elif irVoltage > 2.982:
-		return 7 #readings are inaccurate closer than 7 cm
-        else: 
-		return 1.0 / ( .02554 + (irVoltage -.7321) * ((.1421-.02554)/(2.982-.7321)) )
+		if self.state != None:
+			self.state, output = self.state.execute(self.arduinoInput, self.visionInput)
+			self.arduinoOutput.set(output)
+		else:
+			time.sleep(1)
 
-if __name__ == '__main__':
-	ard = arduino.Arduino()
-	right = arduino.Motor(ard, 14, 42, 2)
-	left = arduino.Motor(ard, 15, 43, 3)
-	irRight = arduino.AnalogInput(ard, 0)  # Create an analog sensor on pin A0
-	irLeft = arduino.AnalogInput(ard, 1)
-	startButton = arduino.DigitalInput(ard, 5) # arduino, pin number
-	ard.run()
+	def cleanup(self):
+		pass
 
-	try:
-		hsv = hue = sat = val = redDist = redMaskedDist = redImg = redMask = redMask1 = redMask2 = None
-		#read images from the camera
-		camera = cv2.VideoCapture(1);
-		smallImg = None
-		scale = .25
-		distThreshold = 80 # empirically determined
-		minArea = 25 # empirically determined
+class ControlState:
+	"""Represents a single state of a state machine"""
 
-		pid = PID(1.0, 0, 0, 1000, -1000, 127, -127)
-		pidLastTime = 0
-		forwardSpeed = 100
-		maxAngleError = 15
-		currentlyTurning = False
-		currentlyAvoidingWall = False
-		camera.read(); # guessing that the first call to read() takes a few seconds and that subsequent ones are fast --> call it now before the timer starts
+	def execute(self, arduinoInput, visionInput):
+		"""Executes the code for this state (should take very little time). Returns the next state to execute, which may be the same state object, and the arduino output"""
+		raise NotImplementedError()
 
-		#wait for a falling edge on the start button
-		previousStartVal = False
-		startVal = False
-		while (not (previousStartVal and not startVal)):
-			previousStartVal = startVal
-			startVal = startButton.getValue()
+class Forward(ControlState):
+	"""Goes forward. Can change states to track a ball or avoid a wall"""
 
-		startTime = time.time()
+	def __init__(self):
+		self.forwardSpeed = 127
+		self.minDist = 25 # cm
 
-		while time.time() - startTime < 3 * 60:
-			f,img = camera.read();
+	def execute(self, arduinoInput, visionInput):
+		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
+		state = self
+		ai, at = arduinoInput.get()
+		vi, vt = visionInput.get()
 
-			leftSpeed = rightSpeed = forwardSpeed
-			if not currentlyAvoidingWall: #don't process images while aoviding walls; it slows code down too much. TODO use threads
-				print "not avoiding a wall"
-				if smallImg==None:
-					smallImg = numpy.zeros((img.shape[0]*scale, img.shape[1]*scale, img.shape[2]), numpy.uint8)
+		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
+			state = AvoidWall()
+		elif len(vi.balls) > 0:
+			state = ApproachBall()
 
-				cv2.resize(img, None, smallImg, .25, .25)
+		return state, output
 
-				hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, redBalls, greenBalls = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
+class AvoidWall(ControlState):
+	def __init__(self):
+		self.reverseSpeed = -127
+		self.forwardSpeed = 40
 
-				for ball in redBalls:
-					greenBalls.append(ball) # temporary code to just detect all balls the same way
+	def execute(self, arduinoInput, visionInput):
+		output = ArduinoOutputData()
+		state = self
+		ai, at = arduinoInput.get()
+		vi, vt = visionInput.get()
 
-				#vision --> follow balls
-				if len(greenBalls) > 0:
-					print "found a ball"
-					closestBall = None
-					for ball in greenBalls:
-						if closestBall == None or ball[3] > closestBall[3]: # index 3 is radius; TODO make ball a class so you can refer to attributes by name
-							closestBall = ball
+		if ai.leftDist < self.minDist and ai.leftDist <= ai.rightDist:
+			output.rightSpeed = self.reverseSpeed
+			output.leftSpeed = self.forwardSpeed
+		elif ai.rightDist < self.minDist:
+			outptu.leftSpeed = self.reverseSpeed
+			output.rightSpeed = self.forwardSpeed
+		else:
+			state = Forward()
+		
+		return state, output
 
-					angle = ball[0]
-					if angle < maxAngleError: #lined up enough; just approach straight
-						rightSpeed = forwardSpeed
-						leftSpeed = forwardSpeed
-					else: #too far out of line; turn in place to line up
-						if not currentlyTurning:
-							pid.reset()
-							pidLastTime = time.time()
-							#don't change right speed or left speed until the next iteration, when we have a delta t
-						else:
-							pidCurrentTime = time.time()
-							output = pid.run(angle, pidCurrentTime - pidLastTime)
-							pidLastTime = pidCurrentTime
-							rightSpeed = output
-							leftSpeed = output
-							print str(int(output)) + "\t" + str(angle)
+class ApproachBall(ControlState):
+	def __init__(self):
+		p = 1
+		i = .1
+		d = 0
+		iMax = 500
+		iMin = -500
+		uMax = 127
+		uMin = -127
+		self.pid = PID(p,i,d,iMax,iMin,uMax,uMin)
+		self.lastRunTime = None
+		self.forwardSpeed = 80
+		self.minDist = 25
+		self.lastRunTime = None
 
-			#avoid walls
-			rightVal = irRight.getValue() 
-			leftVal = irLeft.getValue()
-			if rightVal != None and leftVal != None:
-				rightDist = getDistance(rightVal*5.0/1023)
-				leftDist = getDistance(leftVal*5.0/1023)
+	def execute(self, arduinoInput, visionInput):
+		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
+		state = self
+		ai, at = arduinoInput.get()
+		vi, vt = visionInput.get()
+
+		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
+			state = AvoidWall()
+		elif len(vi.balls) == 0:
+			state = Forward()
+		else:
+			t = time.time()
+			if self.lastRunTime:
+				closest = None
+				for ball in vi.balls:
+					if closest == None or ball.distance < closest.distance:
+						closest = ball
+				angle = closest.angle
+				pidOut = int(pid.run(angle, t-self.lastRunTime))
+				output.leftSpeed = approachSpeed + pidOut
+				output.rightSpeed = approachSpeed - pidOut
 				
-				if rightDist < MIN_DIST:
-					print "avoiding a wall; right side\t" + str(rightDist)
-					currentlyAvoidingWall = True
-					rightSpeed = 0
-					leftSpeed = -127
-				elif leftDist < MIN_DIST:
-					print "avoiding a wall; left side\t" + str(leftDist)
-					currentlyAvoidingWall = True
-					rightSpeed = -127
-					leftSpeed = 0
-				else:
-					currentlyAvoidingWall = False
-					print "not avoiding a wall"
-				
-			else:
-				leftSpeed = rightSpeed = 0
-				print "no reading"
-			print str(rightSpeed) + "\t" + str(leftSpeed)
-			right.setSpeed(rightSpeed)
-			left.setSpeed(leftSpeed)
-
-			key = cv2.waitKey(1)
-			if key == 113: # press 'q' to exit
-				break
-			elif key == 112: # press 'p' to pause
-				key = 0
-				while key != 112 and key != 113: # press 'p' again to resume; 'q' still quits
-					key = cv2.waitKey(0)
-				if key == 113:
-					break
-	finally:
-		right.setSpeed(0)
-		left.setSpeed(0)
-		time.sleep(.1) # not sure this is necessary, but delay before cutting arduino communication
-		ard.stop()
+				tmp = max(abs(output.leftSpeed), abs(output.rightSpeed), 127)
+				output.leftSpeed = output.leftSpeed*127/tmp
+				output.rightSpeed = output.rightSpeed*127/tmp
+			lastRunTime = t
+		return state, output
 

@@ -1,6 +1,6 @@
 
 class Ball:
-	def __init(self, angle=None, isRed=None, time=None, distance=None):
+	def __init__(self, angle=None, isRed=None, time=None, distance=None):
 		self.angle = angle
 		self.distance = distance
 		self.isRed = isRed
