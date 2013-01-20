@@ -63,6 +63,7 @@ class AvoidWall(ControlState):
 	def __init__(self):
 		self.reverseSpeed = -127
 		self.forwardSpeed = 40
+		self.minDist = 25 # cm
 
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData()
@@ -74,7 +75,7 @@ class AvoidWall(ControlState):
 			output.rightSpeed = self.reverseSpeed
 			output.leftSpeed = self.forwardSpeed
 		elif ai.rightDist < self.minDist:
-			outptu.leftSpeed = self.reverseSpeed
+			output.leftSpeed = self.reverseSpeed
 			output.rightSpeed = self.forwardSpeed
 		else:
 			state = Forward()

@@ -64,7 +64,7 @@ class ArduinoThread(StoppableThread):
 	def doOutput(self):
 		out, time = self.outputObj.get()
 		if out and out.rightSpeed and out.leftSpeed:
-			self.right.setSpeed(int(out.rightSpeed))
+			self.right.setSpeed(-int(out.rightSpeed))
 			self.left.setSpeed(int(out.leftSpeed))
 
 	def cleanup(self):

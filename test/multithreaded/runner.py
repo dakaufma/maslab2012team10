@@ -23,7 +23,7 @@ if __name__ == "__main__":
 		systime.sleep(.01)
 
 	# wait for falling edge on start button
-	print "Waiting for rising edge..."
+	print "Waiting for falling edge..."
 	pStart = False
 	while not (pStart and not ai.startButton):
 		pStart = ai.startButton
