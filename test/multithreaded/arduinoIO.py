@@ -3,7 +3,6 @@
 import sys
 sys.path.append("../..")
 from stoppableThread import StoppableThread
-from sharedObject import SharedObject
 import time
 import arduino
 
@@ -31,11 +30,6 @@ class ArduinoThread(StoppableThread):
 	"""Thread responsible for both input and output. Arduino[Input/Output]Data objects are stored in SharedObjects in the inputObj and outputObj fields"""
 	def __init__(self):
 		super(ArduinoThread, self).__init__()
-		self.inputObj = SharedObject()
-		self.inputObj.set(ArduinoInputData())
-		self.outputObj = SharedObject()
-		self.outputObj.set(ArduinoOutputData())
-		self.obj.set( (self.inputObj, self.outputObj) )
 		self.name = "ArduinoIO"
 	
 	def safeInit(self):
@@ -49,7 +43,14 @@ class ArduinoThread(StoppableThread):
 
 	def safeRun(self):
 		self.doInput()
-		self.doOutput()
+
+		# if there is output ready, do output
+		# Note that output is rate-limited by input rate, but this should be ok
+		out = None
+		while self.conn.poll():
+			out = self.conn.recv()
+		if out!=None:
+			self.doOutput(out)
 
 	def doInput(self):
 		rightVal = self.irRight.getValue() 
@@ -59,13 +60,14 @@ class ArduinoThread(StoppableThread):
 			data.rightDist = getDistance(rightVal*5.0/1023)
 			data.leftDist = getDistance(leftVal*5.0/1023)
 		data.startButton = self.startButton.getValue()
-		self.inputObj.set(data)
 
-	def doOutput(self):
-		out, time = self.outputObj.get()
+
+		self.conn.send(data)
+
+	def doOutput(self, out):
 		if out and out.rightSpeed and out.leftSpeed:
 			self.right.setSpeed(-int(out.rightSpeed))
-			self.left.setSpeed(int(out.leftSpeed))
+			self.left.setSpeed(-int(out.leftSpeed))
 
 	def cleanup(self):
 		self.ard.stop()

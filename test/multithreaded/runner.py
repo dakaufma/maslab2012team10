@@ -6,40 +6,50 @@ import time as systime
 
 if __name__ == "__main__":
 	ard = arduinoIO.ArduinoThread()
+	ardConn = ard.otherConn
 	ia = imageAcquisition.ImageAcquisitionThread()
-	ip = imageProcessing.ImageProcessingThread(ia.obj)
+	ip = imageProcessing.ImageProcessingThread(ia.otherConn)
+	ipConn = ip.otherConn
+
 	threadList = [ard, ia, ip]
 	for stoppableThread in threadList:
 		stoppableThread.start()
+	try:
+		# wait until there are readings for all arduino sensors
+		print "Waiting for arduino sensor readings..."
+		ai = ardConn.recv() 
 
-	stateMachine = control.StateMachineThread(control.Forward(), ard.inputObj, ip.obj, ard.outputObj)
-	threadList.append(stateMachine)
+		# wait for falling edge on start button
+		print "Waiting for falling edge..."
+		pStart = False
+		while not (pStart and not ai.startButton):
+			pStart = ai.startButton
+			ai = ardConn.recv()
+			while ardConn.poll():
+				ai = ardConn.recv()
+			if pStart != ai.startButton:
+				print "Start button changed to " + str(ai.startButton)
+			systime.sleep(.01)
 
-	# wait until there are readings for all arduino sensors
-	print "Waiting for arduino sensor readings..."
-	ai, time = ard.inputObj.get()
-	while ai.leftDist == None or ai.rightDist == None or ai.startButton == None:
-		ai, time = ard.inputObj.get()
-		systime.sleep(.01)
+		# start control thread; wait 3 minutes and stop all threads
+		stateMachine = control.StateMachineThread(control.Forward(), ardConn, ipConn)
+		print "Starting robot..."
+		stateMachine.start()
+		systime.sleep(3*60)
+	except:
+		raise #do something else here?
+	finally:
+		print "Stopping robot..."
 
-	# wait for falling edge on start button
-	print "Waiting for falling edge..."
-	pStart = False
-	while not (pStart and not ai.startButton):
-		pStart = ai.startButton
-		ai, time = ard.inputObj.get()
-		systime.sleep(.01)
+		stateMachine.stopThread()
+		stateMachine.join()
+		ardConn.send(arduinoIO.ArduinoOutputData()) # send a command to stop all motors
+		systime.sleep(.1)
 
-	# start control thread; wait 3 minutes and stop all threads
-	print "Starting robot..."
-	stateMachine.start()
-	systime.sleep(3*6)
+		for stoppableThread in threadList:
+			stoppableThread.stopThread()
+		for stoppableThread in threadList:
+			stoppableThread.join()
 
-	print "Stopping robot..."
-	for stoppableThread in threadList:
-		stoppableThread.stopThread()
-	for stoppableThread in threadList:
-		stoppableThread.join()
-
-	print "Done! Hell yeah!"
+		print "Done!"
 

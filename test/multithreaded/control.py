@@ -1,4 +1,4 @@
-from discretePID import PID
+from discretePID import PID 
 from stoppableThread import StoppableThread
 from arduinoIO import *
 import time
@@ -6,26 +6,36 @@ import time
 class StateMachineThread(StoppableThread):
 	"""Represents a state machine"""
 
-	def __init__(self, initialState, arduinoInput, visionInput, arduinoOutput):
+	def __init__(self, initialState, arduinoConn, visionConn):
 		super(StateMachineThread, self).__init__()
 		self.initialState = initialState
-		self.arduinoInput = arduinoInput
-		self.arduinoOutput = arduinoOutput
-		self.visionInput = visionInput
+		self.arduinoConn = arduinoConn
+		self.visionConn = visionConn
 		self.name = "StateMachine"
 
 	def safeInit(self):
 		self.state = self.initialState
 		self.previousState = None
+		self.lastVisionInput = None
+		self.lastArduinoInput = None
+		self.start = time.time()
 
 	def safeRun(self):
+		if (time.time()-self.start > 3*6):
+			self.arduinoConn.send(ArduinoOutputData())
+			return
 		if self.previousState != self.state:
 			print "Changed states: " + str(self.state)
 		self.previousState = self.state
 
+		while self.arduinoConn.poll():
+			self.lastArduinoInput = self.arduinoConn.recv()
+		while self.visionConn.poll():
+			self.lastVisionInput = self.visionConn.recv()
+
 		if self.state != None:
-			self.state, output = self.state.execute(self.arduinoInput, self.visionInput)
-			self.arduinoOutput.set(output)
+			self.state, output = self.state.execute(self.lastArduinoInput, self.lastVisionInput)
+			self.arduinoConn.send(output)
 		else:
 			time.sleep(1)
 
@@ -49,12 +59,12 @@ class Forward(ControlState):
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
 		state = self
-		ai, at = arduinoInput.get()
-		vi, vt = visionInput.get()
+		ai = arduinoInput
+		vi = visionInput
 
 		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
 			state = AvoidWall()
-		elif len(vi.balls) > 0:
+		elif vi != None and len(vi.balls) > 0:
 			state = ApproachBall()
 
 		return state, output
@@ -68,8 +78,8 @@ class AvoidWall(ControlState):
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData()
 		state = self
-		ai, at = arduinoInput.get()
-		vi, vt = visionInput.get()
+		ai = arduinoInput
+		vi = visionInput
 
 		if ai.leftDist < self.minDist and ai.leftDist <= ai.rightDist:
 			output.rightSpeed = self.reverseSpeed
@@ -100,12 +110,12 @@ class ApproachBall(ControlState):
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
 		state = self
-		ai, at = arduinoInput.get()
-		vi, vt = visionInput.get()
+		ai = arduinoInput
+		vi = visionInput
 
 		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
 			state = AvoidWall()
-		elif len(vi.balls) == 0:
+		elif vi != None and len(vi.balls) == 0:
 			state = Forward()
 		else:
 			t = time.time()

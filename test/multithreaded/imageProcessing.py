@@ -4,20 +4,21 @@ import math
 import numpy
 import time
 from stoppableThread import StoppableThread
-from ball import Ball
+import ball
 
 class ImageData:
 	"""Data structure containing all information derived from vision"""
-	def __init__(self, balls=None):
+	def __init__(self, imgTime, balls=None):
+		self.imgTime = imgTime
 		self.balls = balls
 
 class ImageProcessingThread(StoppableThread):
 	"""Processes images to find red and green balls"""
 
-	def __init__(self, imgObj):
+	def __init__(self, imgConn):
 		"""Instantiates the image processing thread using the provided SharedObject as a source of images"""
 		super(ImageProcessingThread, self).__init__()
-		self.imgObj = imgObj
+		self.imgConn = imgConn
 		self.name = "ImageProcessing"
 
 	def safeInit(self):
@@ -51,16 +52,18 @@ class ImageProcessingThread(StoppableThread):
 		self.greenVal = 255
 
 	def safeRun(self):
-		img, self.time = self.imgObj.get()
+		img = None
+		while self.imgConn.poll():
+			img, self.imgTime = self.imgConn.recv()
 		if img == None:
-			time.sleep(.1)
+			time.sleep(.01)
 			return
 		if self.smallImg==None:
 			self.smallImg = numpy.zeros((img.shape[0]*self.scale, img.shape[1]*self.scale, img.shape[2]), numpy.uint8)
 		cv2.resize(img, None, self.smallImg, .25, .25)
 
 		balls = self.processImg()
-		self.obj.set(ImageData(balls), self.time)
+		self.conn.send(ImageData(self.imgTime, balls))
 
 	def cleanup(self):
 		pass
@@ -150,7 +153,7 @@ class ImageProcessingThread(StoppableThread):
 				angle = 78 * (x-self.smallImg.shape[0]/2) / self.smallImg.shape[0]
 				distance = 2.5 * (self.binImg.shape[0] / (2*radius)) * (360/78.0) / (2*math.pi) 
 				#print angle
-				balls.append( Ball(angle, None, time, distance) )
+				balls.append( ball.Ball(angle, None, self.imgTime, distance) )
 			elif area>nextArea:
 				nextArea = area
 				nextLargest = index
