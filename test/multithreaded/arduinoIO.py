@@ -17,9 +17,10 @@ def getDistance(irVoltage):
 
 class ArduinoInputData:
 	def __init__(self, leftDist=None, rightDist=None, startButton=None):
-		self.leftDist = None
-		self.rightDist = None
-		self.startButton = None
+		self.leftDist = None # cm
+		self.rightDist = None # cm
+		self.startButton = None # boolean
+		self.heading = None # angle in degrees
 
 class ArduinoOutputData:
 	def __init__(self, leftSpeed=0, rightSpeed=0):
@@ -27,25 +28,25 @@ class ArduinoOutputData:
 		self.rightSpeed = rightSpeed
 
 class ArduinoThread(StoppableThread):
-	"""Thread responsible for both input and output. Arduino[Input/Output]Data objects are stored in SharedObjects in the inputObj and outputObj fields"""
 	def __init__(self):
-		super(ArduinoThread, self).__init__()
-		self.name = "ArduinoIO"
+		super(ArduinoThread, self).__init__("ArduinoIO")
 	
 	def safeInit(self):
 		self.ard = arduino.Arduino()
-		self.right = arduino.Motor(self.ard, 14, 42, 2)
+		self.right = arduino.Motor(self.ard, 14, 42, 2) # arduino, current, direction, pwm
 		self.left = arduino.Motor(self.ard, 15, 43, 3)
-		self.irRight = arduino.AnalogInput(self.ard, 0) 
+		self.irRight = arduino.AnalogInput(self.ard, 0) # arduino, pin
 		self.irLeft = arduino.AnalogInput(self.ard, 1)
 		self.startButton = arduino.DigitalInput(self.ard, 5) # arduino, pin number
-		self.ard.run()
+		self.imu = arduino.IMU(self.ard) # arduino
+		while True:
+			self.ard.run()
+			if self.ard.portOpened: # successfully connected
+				break
 
 	def safeRun(self):
 		self.doInput()
 
-		# if there is output ready, do output
-		# Note that output is rate-limited by input rate, but this should be ok
 		out = None
 		while self.conn.poll():
 			out = self.conn.recv()
@@ -59,15 +60,23 @@ class ArduinoThread(StoppableThread):
 		if rightVal != None and leftVal != None:
 			data.rightDist = getDistance(rightVal*5.0/1023)
 			data.leftDist = getDistance(leftVal*5.0/1023)
-		data.startButton = self.startButton.getValue()
+			self.logger.debug("Left distance: {0}".format(data.leftDist))
+			self.logger.debug("Right distance: {0}".format(data.rightDist))
 
+		data.startButton = self.startButton.getValue()
+		self.logger.debug("Start button: {0}".format(data.startButton))
+
+		data.heading = self.imu.getRawValues()[0] # compass heading from (compass, accX, accY, accZ)
+		self.logger.debug("Heading: {0}".format(data.heading))
 
 		self.conn.send(data)
 
 	def doOutput(self, out):
-		if out and out.rightSpeed and out.leftSpeed:
+		if out != None:
 			self.right.setSpeed(-int(out.rightSpeed))
 			self.left.setSpeed(-int(out.leftSpeed))
+			self.logger.debug("Left speed: {0}".format(out.leftSpeed))
+			self.logger.debug("Right speed: {0}".format(out.rightSpeed))
 
 	def cleanup(self):
 		self.ard.stop()

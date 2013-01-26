@@ -48,7 +48,7 @@ if __name__ == '__main__':
 	try:
 		hsv = hue = sat = val = redDist = redMaskedDist = redImg = redMask = redMask1 = redMask2 = None
 		#read images from the camera
-		camera = cv2.VideoCapture(2);
+		camera = cv2.VideoCapture(1);
 		smallImg = None
 		scale = .25
 		distThreshold = 80 # empirically determined

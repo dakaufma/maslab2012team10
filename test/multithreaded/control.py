@@ -6,12 +6,11 @@ import time
 class StateMachineThread(StoppableThread):
 	"""Represents a state machine"""
 
-	def __init__(self, initialState, arduinoConn, visionConn):
-		super(StateMachineThread, self).__init__()
-		self.initialState = initialState
-		self.arduinoConn = arduinoConn
-		self.visionConn = visionConn
-		self.name = "StateMachine"
+	def __init__(self, ard, vision):
+		super(StateMachineThread, self).__init__("StateMachine")
+		self.initialState = Forward(self.logger)
+		self.ard = ard
+		self.vision = vision
 
 	def safeInit(self):
 		self.state = self.initialState
@@ -21,21 +20,33 @@ class StateMachineThread(StoppableThread):
 		self.start = time.time()
 
 	def safeRun(self):
-		if (time.time()-self.start > 3*6):
-			self.arduinoConn.send(ArduinoOutputData())
+		# stop the robot if time has elapsed
+		if (time.time()-self.start > 3*60):
+			self.ard.lock.acquire()
+			self.ard.otherConn.send(ArduinoOutputData())
+			self.ard.lock.release()
 			return
+		
+		# print state changes
 		if self.previousState != self.state:
 			print "Changed states: " + str(self.state)
+			self.logger.info("Changed states: " + str(self.state))
 		self.previousState = self.state
 
-		while self.arduinoConn.poll():
-			self.lastArduinoInput = self.arduinoConn.recv()
-		while self.visionConn.poll():
-			self.lastVisionInput = self.visionConn.recv()
+		self.ard.lock.acquire()
+		while self.ard.otherConn.poll():
+			self.lastArduinoInput = self.ard.otherConn.recv()
+		self.ard.lock.release()
+		self.vision.lock.acquire()
+		while self.vision.conn.poll():
+			self.lastVisionInput = self.vision.otherConn.recv()
+		self.vision.lock.release()
 
 		if self.state != None:
 			self.state, output = self.state.execute(self.lastArduinoInput, self.lastVisionInput)
-			self.arduinoConn.send(output)
+			self.ard.lock.acquire()
+			self.ard.otherConn.send(output)
+			self.ard.lock.release()
 		else:
 			time.sleep(1)
 
@@ -52,9 +63,10 @@ class ControlState:
 class Forward(ControlState):
 	"""Goes forward. Can change states to track a ball or avoid a wall"""
 
-	def __init__(self):
+	def __init__(self, logger):
 		self.forwardSpeed = 127
 		self.minDist = 25 # cm
+		self.logger = logger
 
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
@@ -63,17 +75,18 @@ class Forward(ControlState):
 		vi = visionInput
 
 		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
-			state = AvoidWall()
+			state = AvoidWall(self.logger)
 		elif vi != None and len(vi.balls) > 0:
-			state = ApproachBall()
+			state = ApproachBall(self.logger)
 
 		return state, output
 
 class AvoidWall(ControlState):
-	def __init__(self):
+	def __init__(self, logger):
 		self.reverseSpeed = -127
 		self.forwardSpeed = 40
 		self.minDist = 25 # cm
+		self.logger = logger
 
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData()
@@ -84,16 +97,18 @@ class AvoidWall(ControlState):
 		if ai.leftDist < self.minDist and ai.leftDist <= ai.rightDist:
 			output.rightSpeed = self.reverseSpeed
 			output.leftSpeed = self.forwardSpeed
+			self.logger.debug("Avoiding wall on the left")
 		elif ai.rightDist < self.minDist:
 			output.leftSpeed = self.reverseSpeed
 			output.rightSpeed = self.forwardSpeed
+			self.logger.debug("Avoiding wall on the right")
 		else:
-			state = Forward()
+			state = Forward(self.logger)
 		
 		return state, output
 
 class ApproachBall(ControlState):
-	def __init__(self):
+	def __init__(self, logger):
 		p = 1
 		i = .1
 		d = 0
@@ -106,6 +121,7 @@ class ApproachBall(ControlState):
 		self.forwardSpeed = 80
 		self.minDist = 25
 		self.lastRunTime = None
+		self.logger = logger
 
 	def execute(self, arduinoInput, visionInput):
 		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
@@ -114,9 +130,9 @@ class ApproachBall(ControlState):
 		vi = visionInput
 
 		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
-			state = AvoidWall()
+			state = AvoidWall(self.logger)
 		elif vi != None and len(vi.balls) == 0:
-			state = Forward()
+			state = Forward(self.logger)
 		else:
 			t = time.time()
 			if self.lastRunTime:
@@ -125,6 +141,7 @@ class ApproachBall(ControlState):
 					if closest == None or ball.distance < closest.distance:
 						closest = ball
 				angle = closest.angle
+				self.logger.debug("Approaching ball at {0} degrees, {1} cm".format(closest.angle, closest.distance))
 				pidOut = int(pid.run(angle, t-self.lastRunTime))
 				output.leftSpeed = approachSpeed + pidOut
 				output.rightSpeed = approachSpeed - pidOut

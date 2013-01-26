@@ -39,3 +39,6 @@ nosetests.xml
 
 # Vim swap files
 *.swp
+
+# log folders
+logs/*

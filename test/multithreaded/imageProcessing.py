@@ -4,6 +4,7 @@ import math
 import numpy
 import time
 from stoppableThread import StoppableThread
+from imageAcquisition import ImageData
 import ball
 
 class ImageData:
@@ -15,11 +16,9 @@ class ImageData:
 class ImageProcessingThread(StoppableThread):
 	"""Processes images to find red and green balls"""
 
-	def __init__(self, imgConn):
-		"""Instantiates the image processing thread using the provided SharedObject as a source of images"""
-		super(ImageProcessingThread, self).__init__()
-		self.imgConn = imgConn
-		self.name = "ImageProcessing"
+	def __init__(self, imgSource):
+		super(ImageProcessingThread, self).__init__("ImageProcessing")
+		self.imgSource = imgSource
 
 	def safeInit(self):
 		self.smallImg = None # smaller version of the acquired image
@@ -37,7 +36,7 @@ class ImageProcessingThread(StoppableThread):
 		self.scale = .25 # factor by which to scale down the acquired image
 		self.distThreshold = 80 # empirically determined
 		self.minArea = 25 # empirically determined
-		self.time = None # the time the image was acquired; taken from the SharedObject
+		self.time = None # the time the image was acquired
 
 		self.redHue = 0
 		self.redHueMin = 170
@@ -52,17 +51,26 @@ class ImageProcessingThread(StoppableThread):
 		self.greenVal = 255
 
 	def safeRun(self):
-		img = None
-		while self.imgConn.poll():
-			img, self.imgTime = self.imgConn.recv()
-		if img == None:
-			time.sleep(.01)
-			return
+		# get image from ImageAcquisition process
+		self.imgSource.lock.acquire()
+		while True:
+			imgData = self.imgSource.otherConn.recv()
+			img = imgData.img
+			self.robotAngle = imgData.heading
+			self.imgTime = imgData.time
+			if not self.imgSource.otherConn.poll():
+				break
+		self.imgSource.lock.release()
+
+		# shrink image for faster processing
 		if self.smallImg==None:
 			self.smallImg = numpy.zeros((img.shape[0]*self.scale, img.shape[1]*self.scale, img.shape[2]), numpy.uint8)
 		cv2.resize(img, None, self.smallImg, .25, .25)
 
+		# find balls
 		balls = self.processImg()
+
+		# output results
 		self.conn.send(ImageData(self.imgTime, balls))
 
 	def cleanup(self):
@@ -151,6 +159,7 @@ class ImageProcessingThread(StoppableThread):
 			if area > self.minArea:
 				(x,y), radius = cv2.minEnclosingCircle(contour)
 				angle = 78 * (x-self.smallImg.shape[0]/2) / self.smallImg.shape[0]
+				angle += self.robotAngle
 				distance = 2.5 * (self.binImg.shape[0] / (2*radius)) * (360/78.0) / (2*math.pi) 
 				#print angle
 				balls.append( ball.Ball(angle, None, self.imgTime, distance) )
