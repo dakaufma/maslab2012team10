@@ -8,8 +8,8 @@ import arduino
 
 def getDistance(irVoltage):
         #See datasheet; there is a (mostly) linear relationship between voltage and (1/distance) for distances from 7 cm to 80 cm.
-        if irVoltage < .7321:
-                return 80 #readings are inaccurate after 80 cm
+        if irVoltage < .3636:
+                return 155 #readings are inaccurate below .3636 volts
 	elif irVoltage > 2.982:
 		return 7 #readings are inaccurate closer than 7 cm
         else: 

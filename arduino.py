@@ -140,8 +140,8 @@ class Arduino(threading.Thread):
                 length = ord(self.serialRead())
                 # Fill the analogSensors array with incoming data
                 for i in range(length):
-                    byte0 = ord(self.serialRead())
-                    byte1 = ord(self.serialRead())
+                    byte0 = ord(self.serialRead())-1
+                    byte1 = ord(self.serialRead())-1
                     self.analogInputs[i] = byte1 * 256 + byte0
             # IMU
             elif (mode == 'U'):

@@ -3,4 +3,5 @@ vertical scale: 0 volts at 410, 3.5 volts at 18
 
 7 cm:	438, 76		-->	.1421 1/cm, 2.982 volts
 40 cm:	146, 328	-->	.02554 1/cm, .7321 volts
+80 cm: ~.3636 volts
 
