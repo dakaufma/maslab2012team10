@@ -1,38 +1,34 @@
-from discretePID import PID 
 from stoppableThread import StoppableThread
 from arduinoIO import *
+from pilot import *
+from behaviors.ballFollowing import *
+from behaviors.movement import *
+from ball import *
+import utilities
 import time
 
-class StateMachineThread(StoppableThread):
-	"""Represents a state machine"""
+class BehaviorSelector(StoppableThread):
+	"""Selects the robot's behavior (explore straight, approach ball, dump balls, etc) based on inputs, robot state, and time remaining in the game. The defaultBehaviors list contains all possible behaviors (it picks the highest priority behavior). If a behavior requires itself or another behavior to be run again it can add itself/other behaviors to the behaviorStack. Note that a behavior could be called indefinitely if it always added itself to the stack. After 3 minutes the BehaviorSelector will stop the robot regardless of the contents of the behaviorStack."""
 
-	def __init__(self, ard, vision):
-		super(StateMachineThread, self).__init__("StateMachine")
-		self.initialState = Forward(self.logger)
-		self.ard = ard
+	def __init__(self, pilot, vision):
+		super(BehaviorSelector, self).__init__("BehaviorSelector")
+		self.pilot = pilot
 		self.vision = vision
 
+		self.defaultBehaviors = [DriveStraight(self), TurnToBall(self), ApproachBall(self)]
+		self.behaviorStack = []
+
 	def safeInit(self):
-		self.state = self.initialState
-		self.previousState = None
+		self.previousBehavior = None
 		self.lastVisionInput = None
 		self.lastArduinoInput = None
+		self.ballManager = BallManager()
 		self.start = time.time()
+		self.timeStackLastEmpty = time.time()
+		self.maxTimeStackFilled = 30 # seconds
 
 	def safeRun(self):
-		# stop the robot if time has elapsed
-		if (time.time()-self.start > 3*60):
-			self.ard.lock.acquire()
-			self.ard.otherConn.send(ArduinoOutputData())
-			self.ard.lock.release()
-			return
-		
-		# print state changes
-		if self.previousState != self.state:
-			print "Changed states: " + str(self.state)
-			self.logger.info("Changed states: " + str(self.state))
-		self.previousState = self.state
-
+		# update input information from other processes
 		self.ard.lock.acquire()
 		while self.ard.otherConn.poll():
 			self.lastArduinoInput = self.ard.otherConn.recv()
@@ -42,113 +38,50 @@ class StateMachineThread(StoppableThread):
 			self.lastVisionInput = self.vision.otherConn.recv()
 		self.vision.lock.release()
 
-		if self.state != None:
-			self.state, output = self.state.execute(self.lastArduinoInput, self.lastVisionInput)
-			self.ard.lock.acquire()
-			self.ard.otherConn.send(output)
-			self.ard.lock.release()
-		else:
-			time.sleep(1)
+		ballManager.update(self.lastVisionInput.balls)
+
+		# select the next behavior
+		if time.time()-self.start > 3*60: # Force the stop state when the match ends
+			behavior = StopPermanently(self)
+		elif not behaviorStack and time.time()-self.timeStackLastEmpty > self.maxTimeStackFilled: # If the stack has been occupied too long, assume something went wrong and reset stuff
+			self.behaviorStack = []
+			self.timeStackLastEmpty = time.time()
+			behavior = ForcedMarch(self)
+		elif len(behaviorStack) > 0: # take the next behavior off the stack
+			behavior = behaviorStack.items.pop()
+		else: # select the default state with the highest priority
+			self.timeStackLastEmpty = time.time()
+			behavior = None
+			priority = None
+			for b in defaultBehaviors:
+				p = b.getPriority(self)
+				if priority==None or p > priority:
+					behavior = b
+					priority = p
+
+		# print behavior changes
+		if self.previousBehavior != behavior:
+			print "Changed behavior: {0}".format(behavior)
+			self.logger.info("Changed states: {0}".format(behavior))
+
+		# execute behavior 
+		if behavior != None:
+			output = behavior.execute(self.previousBehavior)
+			if output != None:
+				self.pilot.lock.acquire()
+				self.pilot.otherConn.send(output)
+				self.pilot.lock.release()
+
+		self.previousBehavior = behavior
 
 	def cleanup(self):
 		pass
 
-class ControlState:
-	"""Represents a single state of a state machine"""
-
-	def execute(self, arduinoInput, visionInput):
-		"""Executes the code for this state (should take very little time). Returns the next state to execute, which may be the same state object, and the arduino output"""
+class Behavior:
+	def execute(self, previousBehavior):
+		"""Executes the code for this behavior (should take very little time). Returns the pilot commands"""
 		raise NotImplementedError()
 
-class Forward(ControlState):
-	"""Goes forward. Can change states to track a ball or avoid a wall"""
-
-	def __init__(self, logger):
-		self.forwardSpeed = 127
-		self.minDist = 25 # cm
-		self.logger = logger
-
-	def execute(self, arduinoInput, visionInput):
-		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
-		state = self
-		ai = arduinoInput
-		vi = visionInput
-
-		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
-			state = AvoidWall(self.logger)
-		elif vi != None and len(vi.balls) > 0:
-			state = ApproachBall(self.logger)
-
-		return state, output
-
-class AvoidWall(ControlState):
-	def __init__(self, logger):
-		self.reverseSpeed = -127
-		self.forwardSpeed = 40
-		self.minDist = 25 # cm
-		self.logger = logger
-
-	def execute(self, arduinoInput, visionInput):
-		output = ArduinoOutputData()
-		state = self
-		ai = arduinoInput
-		vi = visionInput
-
-		if ai.leftDist < self.minDist and ai.leftDist <= ai.rightDist:
-			output.rightSpeed = self.reverseSpeed
-			output.leftSpeed = self.forwardSpeed
-			self.logger.debug("Avoiding wall on the left")
-		elif ai.rightDist < self.minDist:
-			output.leftSpeed = self.reverseSpeed
-			output.rightSpeed = self.forwardSpeed
-			self.logger.debug("Avoiding wall on the right")
-		else:
-			state = Forward(self.logger)
-		
-		return state, output
-
-class ApproachBall(ControlState):
-	def __init__(self, logger):
-		p = 1
-		i = .1
-		d = 0
-		iMax = 500
-		iMin = -500
-		uMax = 127
-		uMin = -127
-		self.pid = PID(p,i,d,iMax,iMin,uMax,uMin)
-		self.lastRunTime = None
-		self.forwardSpeed = 80
-		self.minDist = 25
-		self.lastRunTime = None
-		self.logger = logger
-
-	def execute(self, arduinoInput, visionInput):
-		output = ArduinoOutputData(self.forwardSpeed, self.forwardSpeed)
-		state = self
-		ai = arduinoInput
-		vi = visionInput
-
-		if ai.leftDist < self.minDist or ai.rightDist <= self.minDist:
-			state = AvoidWall(self.logger)
-		elif vi != None and len(vi.balls) == 0:
-			state = Forward(self.logger)
-		else:
-			t = time.time()
-			if self.lastRunTime:
-				closest = None
-				for ball in vi.balls:
-					if closest == None or ball.distance < closest.distance:
-						closest = ball
-				angle = closest.angle
-				self.logger.debug("Approaching ball at {0} degrees, {1} cm".format(closest.angle, closest.distance))
-				pidOut = int(pid.run(angle, t-self.lastRunTime))
-				output.leftSpeed = approachSpeed + pidOut
-				output.rightSpeed = approachSpeed - pidOut
-				
-				tmp = max(abs(output.leftSpeed), abs(output.rightSpeed), 127)
-				output.leftSpeed = output.leftSpeed*127/tmp
-				output.rightSpeed = output.rightSpeed*127/tmp
-			lastRunTime = t
-		return state, output
+	def getPriority(self):
+		return 0
 

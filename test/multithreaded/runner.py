@@ -2,6 +2,7 @@
 
 import imageAcquisition
 import imageProcessing
+import pilot
 import control
 import arduinoIO
 import time as systime
@@ -10,9 +11,10 @@ if __name__ == "__main__":
 	ard = arduinoIO.ArduinoThread()
 	ia = imageAcquisition.ImageAcquisitionThread(ard)
 	ip = imageProcessing.ImageProcessingThread(ia)
-	stateMachine = None
+	pi = pilot.Pilot(ard)
+	behaviorSelector = None
 
-	threadList = [ard, ia, ip]
+	threadList = [ard, ia, ip, pi]
 	for stoppableThread in threadList:
 		stoppableThread.start()
 	try:
@@ -39,18 +41,18 @@ if __name__ == "__main__":
 			systime.sleep(.01)
 
 		# start control thread; wait 3 minutes and stop all threads
-		stateMachine = control.StateMachineThread(ard, ip)
+		behaviorSelector = control.BehaviorSelector(pi, ip)
 		print "Starting robot..."
-		stateMachine.start()
-		systime.sleep(3*60)
+		behaviorSelector.start()
+		systime.sleep(3*60 + 1)
 	except:
 		raise #do something else here?
 	finally:
-		print "Stopping robot..."
+		print "Stopping robot..." # Note that the BehaviorSelector should have already stopped it; this is a double check (plus it actually stops the threads).
 
-		if stateMachine!=None:
-			stateMachine.stopThread()
-			stateMachine.join()
+		if behaviorSelector!=None:
+			behaviorSelector.stopThread()
+			behaviorSelector.join()
 		ard.lock.acquire() # send a command to stop all motors
 		ard.otherConn.send(arduinoIO.ArduinoOutputData()) 
 		ard.lock.release()

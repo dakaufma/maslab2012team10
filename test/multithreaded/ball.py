@@ -1,31 +1,22 @@
 
 class Ball:
-	def __init__(self, angle=None, isRed=None, time=None, distance=None):
+	def __init__(self, angle=None, isRed=None, lastTimeSeen=None, distance=None):
 		self.angle = angle
 		self.distance = distance
 		self.isRed = isRed
-		self.time = time
+		self.lastTimeSeen = lastTimeseen
+		self.onCamera = True
 
-	def setDistance(self, dist):
-		self.distance = dist
 
-	def getDistance(self):
-		return self.distance
+class BallManager:
+	def __init__(self):
+		self.ballCount = 0
 
-	def setAngle(self, ang):
-		self.angle = ang
+	def getTarget():
+		raise NotImplementedError()
 
-	def getAngle(self):
-		return self.angle
+	def forget(self, ball):
+		raise NotImplementedError()
 
-	def setRed(self, isRed):
-		self.isRed = isRed
-
-	def isRed(self):
-		return self.isRed
-
-	def getTime(self):
-		return self.time
-
-	def setTime(self, t):
-		self.time = t
+	def update(self, balls):
+		raise NotImplementedError()
