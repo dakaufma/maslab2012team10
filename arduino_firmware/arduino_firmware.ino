@@ -428,17 +428,6 @@ void loop()
       int analogVal = analogRead(analogInputPorts[i]);
       unsigned char byte0 = analogVal % 256;
       unsigned char byte1 = analogVal / 256;
-      // Do a little tweaking to make sure we don't send a null byte
-      // by accident. We possibly lose a little bit of accuracy
-      // here.
-      if (byte0 != 255)
-      {
-        byte0++;
-      }
-      if (byte1 != 255)
-      {
-        byte1++;
-      }
 
       // Write the two bytes to the retVal, byte0 first
       Serial.write(byte0);
