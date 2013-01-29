@@ -1,9 +1,8 @@
-nearWallDist = 20 # cm
 def nearWall(arduinoInput):
 	return arduinoInput != None and (arduinoInput.leftDist < nearWallDist or arduinoInput.rightDist < nearWallDist)
 
 def crashed(arduinoInput):
-	raise NotImplementedError()
+	return adruinoInput.frBump or arduinoInput.flBump or arduinoInput.brBump or adruinoInput.blBump
 
 def angleCenterZero(angle):
 	"""Given an angle in degrees, returns the same angle in the range (-180, 180)"""
@@ -14,3 +13,9 @@ def angleCenterZero(angle):
 		angle += 360
 	return angle
 
+# Constants
+cameraFieldOfView = 78 # degrees
+nearWallDist = 20 # cm
+
+turnToBallPriority = 5
+approachBallPriority = 6

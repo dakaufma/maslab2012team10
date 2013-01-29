@@ -69,7 +69,8 @@ class StoppableThread(multiprocessing.Process):
 			except KeyboardInterrupt:
 				self.stopThread()
 				self.logger.exception("Stopped by user")
-				raise
+				print "Stopped by user"
+				break
 			except Exception as e:
 				print self.name + " encountered a fatal error and will be restarted:"
 				traceback.print_exc()

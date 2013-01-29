@@ -12,7 +12,7 @@ if __name__ == "__main__":
 	ia = imageAcquisition.ImageAcquisitionThread(ard)
 	ip = imageProcessing.ImageProcessingThread(ia)
 	pi = pilot.Pilot(ard)
-	behaviorSelector = None
+	behaviorManager = None
 
 	threadList = [ard, ia, ip, pi]
 	for stoppableThread in threadList:
@@ -41,18 +41,18 @@ if __name__ == "__main__":
 			systime.sleep(.01)
 
 		# start control thread; wait 3 minutes and stop all threads
-		behaviorSelector = control.BehaviorSelector(pi, ip)
+		behaviorManager = control.BehaviorManager(pi, ip)
 		print "Starting robot..."
-		behaviorSelector.start()
+		behaviorManager.start()
 		systime.sleep(3*60 + 1)
 	except:
 		raise #do something else here?
 	finally:
-		print "Stopping robot..." # Note that the BehaviorSelector should have already stopped it; this is a double check (plus it actually stops the threads).
+		print "Stopping robot..." # Note that the BehaviorManager should have already stopped it; this is a double check (plus it actually stops the threads).
 
-		if behaviorSelector!=None:
-			behaviorSelector.stopThread()
-			behaviorSelector.join()
+		if behaviorManager!=None:
+			behaviorManager.stopThread()
+			behaviorManager.join()
 		ard.lock.acquire() # send a command to stop all motors
 		ard.otherConn.send(arduinoIO.ArduinoOutputData()) 
 		ard.lock.release()

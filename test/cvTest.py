@@ -168,12 +168,15 @@ if __name__ == '__main__':
 		cv2.destroyAllWindows()
 	else: #read images from the camera
 		camera = cv2.VideoCapture(1);
+		croppedImage = None
 		smallImg = None
 		scale = .25
 		distThreshold = 80 # empirically determined
 		minArea = 25 # empirically determined
 		while True:
 			f,img = camera.read();
+			croppedImage = img[:img.shape[0]/2]
+			displayImage("Cropped image",croppedImage)
 			if smallImg==None:
 				smallImg = numpy.zeros((img.shape[0]*scale, img.shape[1]*scale, img.shape[2]), numpy.uint8)
 

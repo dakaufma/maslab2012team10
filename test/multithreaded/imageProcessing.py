@@ -19,6 +19,7 @@ class ImageProcessingThread(StoppableThread):
 	def __init__(self, imgSource):
 		super(ImageProcessingThread, self).__init__("ImageProcessing")
 		self.imgSource = imgSource
+		self.horizontalPixel = 120 # emperically determined
 
 	def safeInit(self):
 		self.smallImg = None # smaller version of the acquired image
@@ -62,10 +63,13 @@ class ImageProcessingThread(StoppableThread):
 				break
 		self.imgSource.lock.release()
 
+		# crop image; only process below horizontal
+		croppedImage = img[self.horizontalPixel:]
+
 		# shrink image for faster processing
 		if self.smallImg==None:
 			self.smallImg = numpy.zeros((img.shape[0]*self.scale, img.shape[1]*self.scale, img.shape[2]), numpy.uint8)
-		cv2.resize(img, None, self.smallImg, .25, .25)
+		cv2.resize(croppedImage, None, self.smallImg, .25, .25)
 
 		# find balls
 		balls = self.processImg()

@@ -18,10 +18,17 @@ class ImageAcquisitionThread(StoppableThread):
 	def __init__(self, ard):
 		super(ImageAcquisitionThread, self).__init__(name="ImageAcquisition")
 		self.ard = ard
+		
+		self.fpsFile = "fps"
 
 	def safeRun(self):
 		self.logger.debug("Acquiring image")
 		f,img = self.camera.read();
+
+		if self.vw==None:
+			self.vw = cv2.VideoWriter("logs/video.avi", 0, self.fps, (img.shape[1], img.shape[0]))
+		self.vw.write(img)
+		self.frameCount += 1
 
 		self.logger.debug("Acquiring arudino lock")
 		self.ard.lock.acquire()
@@ -39,6 +46,21 @@ class ImageAcquisitionThread(StoppableThread):
 		self.camera = cv2.VideoCapture(0)
 		self.name = "ImageAcquisition"
 
+		self.fps = 30
+		try:
+			f = open(fpsFile, "r")
+			self.fps = int(float(f.read()))
+			f.close()
+			print fps
+		except:
+			print "Failed to open fps file; using fps of 30"
+		self.frameCount = 0
+		self.startTime = systime.time()
+		self.vw = None
+
 	def cleanup(self):
 		self.camera.release()
+		f = open(self.fpsFile, "w")
+		f.write("{0}\n".format(self.frameCount/(systime.time()-self.startTime)))
+		f.close()
 			
