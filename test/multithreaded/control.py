@@ -24,7 +24,6 @@ class BehaviorManager(StoppableThread):
 		self.start = time.time()
 		self.timeStackLastEmpty = time.time()
 		self.maxTimeStackFilled = 30 # seconds
-		self.pursuingBall = False
 
 	def safeRun(self):
 		# update input information from other processes
@@ -37,7 +36,7 @@ class BehaviorManager(StoppableThread):
 			self.lastVisionInput = self.vision.otherConn.recv()
 		self.vision.lock.release()
 
-		ballManager.update(self.lastVisionInput.balls, self.pursingBall)
+		ballManager.update(self.lastVisionInput.balls)
 
 		# select the next behavior
 		if time.time()-self.start > 3*60: # Force the stop state when the match ends
@@ -67,7 +66,6 @@ class BehaviorManager(StoppableThread):
 		if behavior != None:
 			output = behavior.execute(self.previousBehavior)
 			if output != None:
-				self.pursuingBall = behavior.pursuingBall()
 				self.pilot.lock.acquire()
 				self.pilot.otherConn.send(output)
 				self.pilot.lock.release()
@@ -84,9 +82,6 @@ class Behavior:
 
 	def getPriority(self):
 		return 0
-
-	def pursuingBall(self):
-		return False
 
 class TurnToBall(Behavior):
 	def __init__(self, behaviorManager):
@@ -122,9 +117,6 @@ class TurnToBall(Behavior):
 
 	def getPriority(self):
 		return -1 if self.behaviorManager.ballManager.getTarget() == None else utilites.turnToBallPriority
-
-	def pursuingBall(self):
-		return True
 
 class ApproachBall(Behavior):
 	def __init__(self, behaviorManager):
@@ -185,9 +177,6 @@ class ApproachBall(Behavior):
 		else:
 			return utilites.approachBallPriority
 	
-	def pursuingBall(self):
-		return True
-
 class DriveStraightAcquireBall(Behavior):
 	def __init__(self, behaviorManager, ballCount):
 		self.behaviorManager = behaviorManager
@@ -217,9 +206,6 @@ class DriveStraightAcquireBall(Behavior):
 		output.rampCommand = RampCommands.UP
 
 		return output
-
-	def pursuingBall(self):
-		return True
 
 class DriveStraight(Behavior):
 	"""Goes forward. Can change states to track a ball or avoid a wall"""
