@@ -103,9 +103,6 @@ class TurnToBall(Behavior):
 		if self.ball == None:
 			return
 		
-		if time.time() - self.startTime > self.timeout:
-			bm.forget(self.ball)
-
 		desiredAngleDelta = utilities.angleCenterZero(ball.angle - self.behaviorManager.lastArduinoInput.heading)
 		output.desiredDeltaAngle = desiredDeltaAngle
 
