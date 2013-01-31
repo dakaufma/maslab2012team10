@@ -1,7 +1,9 @@
 from stoppableThread import StoppableThread
 from ball import BallManager
+from wall import WallManager
 from behaviors.movement import *
 from behaviors.ballFollowing import *
+from behaviors.wallScoring import *
 import time
 
 class BehaviorManager(StoppableThread):
@@ -12,7 +14,7 @@ class BehaviorManager(StoppableThread):
 		self.pilot = pilot
 		self.vision = vision
 
-		self.defaultBehaviors = [DriveStraight(self), TurnToBall(self), ApproachBall(self)]
+		self.defaultBehaviors = [DriveStraight(self), TurnToBall(self), ApproachBall(self), ApproachYellowWall(self)]
 		self.behaviorStack = []
 
 	def safeInit(self):
@@ -20,6 +22,7 @@ class BehaviorManager(StoppableThread):
 		self.lastVisionInput = None
 		self.lastArduinoInput = None
 		self.ballManager = BallManager()
+		self.wallManager = WallManager()
 		self.start = time.time()
 		self.timeStackLastEmpty = time.time()
 		self.maxTimeStackFilled = 30 # seconds
@@ -35,7 +38,8 @@ class BehaviorManager(StoppableThread):
 			self.lastVisionInput = self.vision.otherConn.recv()
 		self.vision.lock.release()
 
-		ballManager.update(self.lastVisionInput.balls)
+		self.ballManager.update(self.lastVisionInput.balls)
+		self.wallmanager.update(self.lastVisionInput.walls)
 
 		# select the next behavior
 		if time.time()-self.start > 3*60: # Force the stop state when the match ends

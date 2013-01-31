@@ -6,6 +6,7 @@ import cv2
 import sys
 import math
 import numpy
+import time
 
 redHue = 0
 redHueMin = 170
@@ -132,6 +133,54 @@ def findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, col
 		displayImage("ball detection", img)
 	return colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, balls
 
+def findYellowWalls(img, hsv, hue, sat, val, debug):
+	displayImage("hue", hue)
+	displayImage("sat", sat)
+	#generate mask based on hue
+	yellowMinHue = 15
+	yellowMaxHue = 35
+	hueMask = cv2.inRange(hue, numpy.array([yellowMinHue]), numpy.array([yellowMaxHue]))
+	displayImage("hue mask", hueMask)
+	yellowMinSat = 100
+	yellowMaxSat = 255
+	satMask = cv2.inRange(sat, numpy.array([yellowMinSat]), numpy.array([yellowMaxSat]))
+	displayImage("sat mask", satMask)
+	mask = cv2.min(hueMask, satMask) # AND of both masks
+	displayImage("mask", mask)
+
+	# find contours with at least [const] area 
+	minArea = 400 # determined empirically
+
+	contours, heirarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	nextLargest = None
+	nextArea = 0
+	index = 0
+	walls = []
+	for contour in contours:
+		area = cv2.contourArea(contour)
+		if area > minArea:
+			(x,y, width, height) = cv2.boundingRect(contour)
+			angle = 78 * (x+width/2 - img.shape[0]/2) / img.shape[0]
+			walls.append( (angle, x, y, width, height, area, contour) )
+			if debug:
+				print "area = {0}\tangle={1}".format(area, angle)
+				cv2.rectangle(img, (x,y), (x+width,y+height), (255,0,0), 3)
+		elif area>nextArea:
+			nextArea = area
+			nextLargest = index
+		index += 1
+	if nextLargest != None:
+		print "next largest: area = {0}".format(nextArea)
+		(x,y, width, height) = cv2.boundingRect(contours[nextLargest])
+		cv2.rectangle(img, (x,y), (x+width,y+height), (0,255,0), 3)
+
+
+	displayImage("img", img)
+
+	return walls
+
+
+
 def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, debug=False):
 	#get HSV channels
 	hsv, hue, sat, val = getHSV(img, hsv, hue, sat, val);
@@ -140,13 +189,17 @@ def processImg(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, co
 		displayImage("sat", sat)
 		displayImage("val", val)
 
-	#find red balls
 	redBalls = greenBalls = None
+	#find red balls
+	#redBalls = greenBalls = None
 	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, redHue, redHueMin, redHueMax, redSat, redVal, "red", debug)
 
 
 	#find green balls
 	colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, greenBalls = findBalls(img, hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, distThreshold, minArea, greenHue, greenHueMin, greenHueMax, greenSat, greenVal, "green", debug)
+
+	#find the yellow wall(s)
+	walls = findYellowWalls(img, hsv, hue, sat, val, True)
 
 	return hsv, hue, sat, val, colorDist, colorMaskedDist, colorImg, colorMask, colorMask1, colorMask2, redBalls, greenBalls
 
@@ -158,10 +211,13 @@ if __name__ == '__main__':
 		for fileName in sys.argv[1:]:
 			#load image and shrink to a reasonable size
 			img = cv2.imread(fileName)
+			startTime = time.time()
 			smallImg = cv2.resize(img, None, None, .1, .1)
 
 			hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, redBalls, greenBalls = processImg(smallImg, hsv, hue, sat, val, redDist, redMaskedDist, redImg, redMask, redMask1, redMask2, distThreshold, minArea)
 
+			endTime = time.time()
+			print "Processed at {0} Hz".format(1.0/(endTime-startTime))
 			key = cv2.waitKey()
 			if key == 113:
 				break

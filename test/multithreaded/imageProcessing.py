@@ -6,12 +6,14 @@ import time
 from stoppableThread import StoppableThread
 from imageAcquisition import ImageData
 import ball
+import wall
 
 class ImageData:
 	"""Data structure containing all information derived from vision"""
-	def __init__(self, imgTime, balls=None):
+	def __init__(self, imgTime, balls=None, walls=None):
 		self.imgTime = imgTime
 		self.balls = balls
+		self.walls = walls
 
 class ImageProcessingThread(StoppableThread):
 	"""Processes images to find red and green balls"""
@@ -50,6 +52,12 @@ class ImageProcessingThread(StoppableThread):
 		self.greenHueMax = 75
 		self.greenSat = 255
 		self.greenVal = 255
+		
+		self.yellowMinHue = 15
+		self.yellowMaxHue = 35
+		self.yellowMinSat = 100
+		self.yellowMaxSat = 255
+		self.wallMinArea = 100 # determined empirically
 
 	def safeRun(self):
 		# get image from ImageAcquisition process
@@ -71,11 +79,11 @@ class ImageProcessingThread(StoppableThread):
 			self.smallImg = numpy.zeros((img.shape[0]*self.scale, img.shape[1]*self.scale, img.shape[2]), numpy.uint8)
 		cv2.resize(croppedImage, None, self.smallImg, .25, .25)
 
-		# find balls
-		balls = self.processImg()
+		# find balls, walls
+		output = self.processImg()
 
 		# output results
-		self.conn.send(ImageData(self.imgTime, balls))
+		self.conn.send(output)
 
 	def cleanup(self):
 		pass
@@ -173,6 +181,25 @@ class ImageProcessingThread(StoppableThread):
 			index += 1
 		return balls
 
+	def findYellowWalls(self):
+		#generate mask based on hue
+		self.hueMask = cv2.inRange(self.hueImg, numpy.array([self.yellowMinHue]), numpy.array([self.yellowMaxHue]), self.hueMask)
+		self.satMask = cv2.inRange(self.satImg, numpy.array([self.yellowMinSat]), numpy.array([self.yellowMaxSat]), self.satMask)
+		self.mask = cv2.min(hueMask, satMask, self.mask) # AND of both masks
+
+		# find contours with at least [const] area 
+
+		contours, heirarchy = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+		walls = []
+		for contour in contours:
+			area = cv2.contourArea(contour)
+			if area > self.minWallArea:
+				(x,y, width, height) = cv2.boundingRect(contour)
+				angle = 78 * (x+width/2 - img.shape[0]/2) / img.shape[0]
+				walls.append( wall.Wall(angle, x, y, width, height, area) )
+
+		return walls
+
 	def processImg(self):
 		self.getHSV();
 
@@ -191,6 +218,9 @@ class ImageProcessingThread(StoppableThread):
 			ball.setRed(False)
 			balls.append(ball)
 
-		return balls
+		#find the yellow wall
+		walls = self.findYellowWalls()
+
+		return ImageData(self.imgTime, balls, walls)
 
 

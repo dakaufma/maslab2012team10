@@ -19,3 +19,4 @@ nearWallDist = 20 # cm
 
 turnToBallPriority = 5
 approachBallPriority = 6
+approachYellowWallPriority = 10
