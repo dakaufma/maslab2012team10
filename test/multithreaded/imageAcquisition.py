@@ -1,4 +1,5 @@
 import cv2
+import numpy
 from stoppableThread import StoppableThread
 import time as systime
 
@@ -18,16 +19,26 @@ class ImageAcquisitionThread(StoppableThread):
 	def __init__(self, ard):
 		super(ImageAcquisitionThread, self).__init__(name="ImageAcquisition")
 		self.ard = ard
+
+		self.scale = .25 # factor by which to scale down the acquired image
 		
 		self.fpsFile = "fps"
 
 	def safeRun(self):
+		sTime = systime.time()
 		self.logger.debug("Acquiring image")
 		f,img = self.camera.read();
 
+		# shink image for faster processing
+		if self.smallImg==None:
+			self.smallImg = numpy.zeros((img.shape[0]*self.scale, img.shape[1]*self.scale, img.shape[2]), numpy.uint8)
+		cv2.resize(img, None, self.smallImg, self.scale, self.scale)
+
 		if self.vw==None:
-			self.vw = cv2.VideoWriter("logs/video.avi", 0, self.fps, (img.shape[1], img.shape[0]))
-		self.vw.write(img)
+			self.logger.debug("Opening video file")
+			self.vw = cv2.VideoWriter("logs/video.avi", 0, self.fps, (self.smallImg.shape[1], self.smallImg.shape[0]))
+		self.logger.debug("Writing video frame")
+		self.vw.write(self.smallImg)
 		self.frameCount += 1
 
 		self.logger.debug("Acquiring arudino lock")
@@ -40,10 +51,11 @@ class ImageAcquisitionThread(StoppableThread):
 		self.ard.lock.release()
 		heading = 0 if ai==None else ai.heading
 
-		self.conn.send( ImageData(img, heading) )
+		self.conn.send( ImageData(self.smallImg, heading) )
+		self.logger.debug("ran in {0} seconds".format(systime.time()-sTime))
 
 	def safeInit(self):
-		self.camera = cv2.VideoCapture(0)
+		self.camera = cv2.VideoCapture(1)
 		self.name = "ImageAcquisition"
 
 		self.fps = 30
@@ -57,6 +69,8 @@ class ImageAcquisitionThread(StoppableThread):
 		self.frameCount = 0
 		self.startTime = systime.time()
 		self.vw = None
+
+		self.smallImg = None
 
 	def cleanup(self):
 		self.camera.release()

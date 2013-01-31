@@ -73,9 +73,9 @@ class Pilot(StoppableThread):
 			self.evalWinchCommand(ao, commands)
 			self.evalRampCommand(ao, commands)
 
-			ard.iolock.acquire()
-			ard.otherConn.send(ao)
-			ard.iolock.release()
+			self.ard.lock.acquire()
+			self.ard.otherConn.send(ao)
+			self.ard.lock.release()
 
 	def cleanup(self):
 		pass
@@ -118,14 +118,14 @@ class Pilot(StoppableThread):
 
 	def evalWinchCommand(self, ao, commands):
 		if commands.winchCommand == WinchCommands.UP:
-			if not commands.ai.topLimit:
+			if not commands.ai.winchTop:
 				ao.winchSpeed = 127
 			else:
 				ao.winchSpeed = 0
 		elif commands.winchCommand == WinchCommands.STOP:
 			ao.winchSpeed = 0
 		elif commands.winchCommand == WinchCommands.DOWN:
-			if not commands.ai.bottomLimit:
+			if not commands.ai.winchBottom:
 				ao.winchSpeed = -127
 			else:
 				ao.winchSpeed = 0

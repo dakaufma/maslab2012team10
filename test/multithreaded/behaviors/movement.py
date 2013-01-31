@@ -80,8 +80,8 @@ class Uncrash(Behavior):
 	def init(self, ai):
 		self.crashedRight = ai.frBump or ai.brBump
 		self.crashedLeft = ai.flBump or ai.blBump
-		self.crashedFront = ai.frBump or flBump
-		self.crashedBack = ai.brBump or blBump
+		self.crashedFront = ai.frBump or ai.flBump
+		self.crashedBack = ai.brBump or ai.blBump
 
 	def execute(self, previousBehavior):
 		ai = self.behaviorManager.lastArduinoInput
@@ -120,7 +120,7 @@ class StopPermanently(Behavior):
 		self.logger = behaviorManager.logger
 
 	def execute(self, previousState):
-		self.behaviorManager.behaviorStack.append(this)
+		self.behaviorManager.behaviorStack.append(self)
 		return PilotCommands(self.behaviorManager.lastArduinoInput)
 
 
@@ -129,7 +129,7 @@ class ForcedMarch(Behavior):
 
 	def __init__(self, behaviorManager):
 		self.behaviorManager = behaviorManager
-		self.logger = logger
+		self.logger = behaviorManager.logger
 		self.forward = DriveStraight(behaviorManager, False)
 		self.timeout = 10 # sec
 
@@ -140,8 +140,8 @@ class ForcedMarch(Behavior):
 		if (previousState != self and previousState != self.forward):
 			self.init()
 
-		if time.time() - self.startTime < timeout: # robot is forced to march (drive straight) until the timeout is reached
+		if time.time() - self.startTime < self.timeout: # robot is forced to march (drive straight) until the timeout is reached
 			self.behaviorManager.behaviorStack.append(self)
-			self.behaviorManager.behaviorStack.append(forward)
+			self.behaviorManager.behaviorStack.append(self.forward)
 		return None
 

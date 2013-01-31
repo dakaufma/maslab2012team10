@@ -14,7 +14,7 @@ class ApproachYellowWall(Behavior):
 		self.distThresh = 30 # cm
 		self.slowForwardSpeed = 60
 		self.fastForwardSpeed = 100
-		self.irSpacing = 30.5 # cm between the IR sensors
+		self.irSpacing = 11.7 * 2.54 # cm between the IR sensors
 		self.timeout = 15 # seconds
 
 	def init(self):

@@ -21,7 +21,7 @@ class ImageProcessingThread(StoppableThread):
 	def __init__(self, imgSource):
 		super(ImageProcessingThread, self).__init__("ImageProcessing")
 		self.imgSource = imgSource
-		self.horizontalPixel = 120 # emperically determined
+		self.horizontalPixel = 90 # emperically determined
 
 	def safeInit(self):
 		self.smallImg = None # smaller version of the acquired image
@@ -39,7 +39,6 @@ class ImageProcessingThread(StoppableThread):
 		self.satMask = None 
 		self.mask = None
 
-		self.scale = .25 # factor by which to scale down the acquired image
 		self.distThreshold = 80 # empirically determined
 		self.minArea = 25 # empirically determined
 		self.time = None # the time the image was acquired
@@ -60,7 +59,7 @@ class ImageProcessingThread(StoppableThread):
 		self.yellowMaxHue = 35
 		self.yellowMinSat = 100
 		self.yellowMaxSat = 255
-		self.wallMinArea = 100 # determined empirically
+		self.minWallArea = 100 # determined empirically
 
 	def safeRun(self):
 		# get image from ImageAcquisition process
@@ -75,12 +74,7 @@ class ImageProcessingThread(StoppableThread):
 		self.imgSource.lock.release()
 
 		# crop image; only process below horizontal
-		croppedImage = img[self.horizontalPixel:]
-
-		# shrink image for faster processing
-		if self.smallImg==None:
-			self.smallImg = numpy.zeros((img.shape[0]*self.scale, img.shape[1]*self.scale, img.shape[2]), numpy.uint8)
-		cv2.resize(croppedImage, None, self.smallImg, .25, .25)
+		self.smallImg = img[self.horizontalPixel:]
 
 		# find balls, walls
 		output = self.processImg()
@@ -211,14 +205,14 @@ class ImageProcessingThread(StoppableThread):
 		#find red balls
 		redBalls = self.findBalls(self.redHue, self.redHueMin, self.redHueMax, self.redSat, self.redVal)
 		for ball in redBalls:
-			ball.setRed(True)
+			ball.isRed = True
 			balls.append(ball)
 
 
 		#find green balls
 		greenBalls = self.findBalls(self.greenHue, self.greenHueMin, self.greenHueMax, self.greenSat, self.greenVal)
 		for ball in greenBalls:
-			ball.setRed(False)
+			ball.isRed = False
 			balls.append(ball)
 
 		#find the yellow wall

@@ -27,6 +27,7 @@ class BehaviorManager(StoppableThread):
 		self.start = time.time()
 		self.timeStackLastEmpty = time.time()
 		self.maxTimeStackFilled = 30 # seconds
+		self.stopPermanently = StopPermanently(self)
 
 		#ensure that we have some input from other processes
 		self.ard.lock.acquire()
@@ -58,8 +59,8 @@ class BehaviorManager(StoppableThread):
 
 		# select the next behavior
 		if time.time()-self.start > 3*60: # Force the stop state when the match ends
-			behavior = StopPermanently(self)
-		elif not self.behaviorStack and time.time()-self.timeStackLastEmpty > self.maxTimeStackFilled: # If the stack has been occupied too long, assume something went wrong and reset stuff
+			behavior = self.stopPermanently
+		elif time.time()-self.timeStackLastEmpty > self.maxTimeStackFilled: # If the stack has been occupied too long, assume something went wrong and reset stuff
 			self.behaviorStack = []
 			self.timeStackLastEmpty = time.time()
 			behavior = ForcedMarch(self)
