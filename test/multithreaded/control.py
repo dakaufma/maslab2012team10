@@ -15,7 +15,7 @@ class BehaviorManager(StoppableThread):
 		self.pilot = pilot
 		self.vision = vision
 
-		self.defaultBehaviors = [DriveStraight(self), TurnToBall(self), ApproachBall(self), ApproachYellowWall(self)]
+		self.defaultBehaviors = [DriveStraight(self), TurnToBall(self), ApproachBall(self)]#, ApproachYellowWall(self)]
 		self.behaviorStack = []
 
 	def safeInit(self):
@@ -39,20 +39,20 @@ class BehaviorManager(StoppableThread):
 		self.vision.lock.acquire()
 		while True:
 			self.lastVisionInput = self.vision.otherConn.recv()
-			if not self.vision.conn.poll():
+			if not self.vision.otherConn.poll():
 				break
 		self.vision.lock.release()
 
 	def safeRun(self):
 		# update input information from other processes
-		self.ard.lock.acquire()
-		while self.ard.otherConn.poll():
-			self.lastArduinoInput = self.ard.otherConn.recv()
-		self.ard.lock.release()
-		self.vision.lock.acquire()
-		while self.vision.conn.poll():
-			self.lastVisionInput = self.vision.otherConn.recv()
-		self.vision.lock.release()
+		if self.ard.lock.acquire(1):
+			while self.ard.otherConn.poll():
+				self.lastArduinoInput = self.ard.otherConn.recv()
+			self.ard.lock.release()
+		if self.vision.lock.acquire(1):
+			while self.vision.otherConn.poll():
+				self.lastVisionInput = self.vision.otherConn.recv()
+			self.vision.lock.release()
 
 		self.ballManager.update(self.lastVisionInput.balls)
 		self.wallManager.update(self.lastVisionInput.walls)
@@ -85,9 +85,9 @@ class BehaviorManager(StoppableThread):
 		if behavior != None:
 			output = behavior.execute(self.previousBehavior)
 			if output != None:
-				self.pilot.lock.acquire()
-				self.pilot.otherConn.send(output)
-				self.pilot.lock.release()
+				if self.pilot.lock.acquire(1):
+					self.pilot.otherConn.send(output)
+					self.pilot.lock.release()
 
 		self.previousBehavior = behavior
 

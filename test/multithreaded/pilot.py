@@ -44,6 +44,7 @@ class Pilot(StoppableThread):
 		self.ard = ard
 
 	def safeInit(self):
+		self.pidController = None
 		self.lastPIDtime = None
 		self.rampUpAngle = 90
 		self.rampDownAngle = 0
@@ -73,9 +74,9 @@ class Pilot(StoppableThread):
 			self.evalWinchCommand(ao, commands)
 			self.evalRampCommand(ao, commands)
 
-			self.ard.lock.acquire()
-			self.ard.otherConn.send(ao)
-			self.ard.lock.release()
+			if self.ard.lock.acquire(1):
+				self.ard.otherConn.send(ao)
+				self.ard.lock.release()
 
 	def cleanup(self):
 		pass
@@ -86,7 +87,7 @@ class Pilot(StoppableThread):
 
 		if commands.desiredDeltaAngle != None: # pid control of angle (setting the turnSpeed command), then arcade drive on the result
 			t = time.time()
-			if lastPIDtime == None: # re-initialize PID
+			if self.lastPIDtime == None: # re-initialize PID
 				p = 1
 				i = .1
 				d = 0
@@ -94,13 +95,13 @@ class Pilot(StoppableThread):
 				iMin = -500
 				uMax = 127  * 2 # at max should be sufficient to overcome any forward speed command
 				uMin = -127 * 2
-				self.pid = PID(p,i,d,iMax,iMin,uMax,uMin)
+				self.pidController = PID(p,i,d,iMax,iMin,uMax,uMin)
 			else: # PID angle control
-				commands.turnSpeed = pid.run(desiredDeltaAngle, t - self.lastPIDtime)
+				commands.turnSpeed = self.pidController.run(commands.desiredDeltaAngle, t - self.lastPIDtime)
 
-			lastPIDtime = t
+			self.lastPIDtime = t
 		else:
-			lastPIDtime = None
+			self.lastPIDtime = None
 
 		if commands.turnSpeed != None: # turn based on turnSpeed(standard arcade drive)
 			l = r = commands.forwardSpeed

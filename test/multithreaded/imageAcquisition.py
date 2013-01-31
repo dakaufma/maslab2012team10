@@ -25,7 +25,6 @@ class ImageAcquisitionThread(StoppableThread):
 		self.fpsFile = "fps"
 
 	def safeRun(self):
-		sTime = systime.time()
 		self.logger.debug("Acquiring image")
 		f,img = self.camera.read();
 
@@ -42,21 +41,24 @@ class ImageAcquisitionThread(StoppableThread):
 		self.frameCount += 1
 
 		self.logger.debug("Acquiring arudino lock")
-		self.ard.lock.acquire()
 		ai = None
-		while True:
-			ai = self.ard.otherConn.recv() # note that you can't acquire images without receiving data from the arduino. Not ideal, but probably ok
-			if not self.ard.otherConn.poll():
-				break
-		self.ard.lock.release()
-		heading = 0 if ai==None else ai.heading
+		if self.ard.lock.acquire(1):
+			while True:
+				ai = self.ard.otherConn.recv() # note that you can't acquire images without receiving data from the arduino. Not ideal, but probably ok
+				if not self.ard.otherConn.poll():
+					break
+			self.ard.lock.release()
+		if ai != None:
+			self.lastHeading = ai.heading
+		heading = self.lastHeading
 
 		self.conn.send( ImageData(self.smallImg, heading) )
-		self.logger.debug("ran in {0} seconds".format(systime.time()-sTime))
 
 	def safeInit(self):
 		self.camera = cv2.VideoCapture(1)
 		self.name = "ImageAcquisition"
+
+		self.lastHeading = 0
 
 		self.fps = 30
 		try:

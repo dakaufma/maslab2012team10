@@ -21,7 +21,7 @@ class ImageProcessingThread(StoppableThread):
 	def __init__(self, imgSource):
 		super(ImageProcessingThread, self).__init__("ImageProcessing")
 		self.imgSource = imgSource
-		self.horizontalPixel = 90 # emperically determined
+		self.horizontalPixel = 60 # emperically determined
 
 	def safeInit(self):
 		self.smallImg = None # smaller version of the acquired image
@@ -73,11 +73,20 @@ class ImageProcessingThread(StoppableThread):
 				break
 		self.imgSource.lock.release()
 
+		self.logger.debug("Processing image")
+
 		# crop image; only process below horizontal
 		self.smallImg = img[self.horizontalPixel:]
 
 		# find balls, walls
 		output = self.processImg()
+
+		if len(output.balls) > 0 or len(output.walls) > 0:
+			self.logger.debug("Robot heading {0}".format(self.robotAngle))
+		for ball in output.balls:
+			self.logger.debug("Found ball at angle {0}\tdistance {1}".format(ball.angle, ball.distance))
+		for wall in output.walls:
+			self.logger.debug("Found a yellow wall at angle {0}\tarea {1}".format(wall.angle, wall.area))
 
 		# output results
 		self.conn.send(output)
@@ -167,7 +176,7 @@ class ImageProcessingThread(StoppableThread):
 			area = cv2.contourArea(contour)
 			if area > self.minArea:
 				(x,y), radius = cv2.minEnclosingCircle(contour)
-				angle = 78 * (x-self.smallImg.shape[0]/2) / self.smallImg.shape[0]
+				angle = 78 * (x-self.smallImg.shape[1]/2) / self.smallImg.shape[1]
 				angle += self.robotAngle
 				distance = 2.5 * (self.binImg.shape[0] / (2*radius)) * (360/78.0) / (2*math.pi) 
 				#print angle
@@ -192,7 +201,7 @@ class ImageProcessingThread(StoppableThread):
 			area = cv2.contourArea(contour)
 			if area > self.minWallArea:
 				(x,y, width, height) = cv2.boundingRect(contour)
-				angle = 78 * (x+width/2 - img.shape[0]/2) / img.shape[0]
+				angle = 78 * (x+width/2 - self.hueImg.shape[0]/2) / self.hueImg.shape[0]
 				walls.append( wall.Wall(angle, x, y, width, height, area) )
 
 		return walls

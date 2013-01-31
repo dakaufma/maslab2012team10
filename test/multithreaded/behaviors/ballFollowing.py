@@ -9,9 +9,11 @@ class TurnToBall(Behavior):
 		self.timeout = 10 # seconds
 		self.maxAngleError = 10 # degrees
 
-	def init(bm):
+	def init(self, bm):
 		self.startTime = time.time()
 		self.ball = bm.getTarget()
+		self.framesNoBall = 0
+		self.maxFramesNoBall = 3
 
 	def execute(self, previousBehavior):
 		output = PilotCommands(self.behaviorManager.lastArduinoInput)
@@ -19,10 +21,15 @@ class TurnToBall(Behavior):
 		if (previousBehavior != self):
 			self.init(bm)
 
-		if self.ball == None:
-			return
+		if bm.getTarget() != None:
+			self.ball = bm.getTarget()
+			self.framesNoBall = 0
+		else:
+			self.framesNoBall += 1
+			if self.framesNoBall > self.maxFramesNoBall:
+				return # lost the ball
 		
-		desiredAngleDelta = utilities.angleCenterZero(ball.angle - self.behaviorManager.lastArduinoInput.heading)
+		desiredDeltaAngle = utilities.angleCenterZero(self.ball.angle - self.behaviorManager.lastArduinoInput.heading)
 		output.desiredDeltaAngle = desiredDeltaAngle
 
 		output.rollerCommand = RollerCommands.FORWARD
@@ -32,7 +39,7 @@ class TurnToBall(Behavior):
 		return output
 
 	def getPriority(self):
-		return -1 if self.behaviorManager.ballManager.getTarget() == None else utilites.turnToBallPriority
+		return -1 if self.behaviorManager.ballManager.getTarget() == None else utilities.turnToBallPriority
 
 class ApproachBall(Behavior):
 	def __init__(self, behaviorManager):
@@ -45,7 +52,7 @@ class ApproachBall(Behavior):
 	def init(self, ballCount):
 		self.lastRunTime = None
 		self.startTime = time.time()
-		self.ballcount = ballCount
+		self.ballCount = ballCount
 
 	def execute(self, previousBehavior):
 		ai = self.behaviorManager.lastArduinoInput
@@ -53,6 +60,10 @@ class ApproachBall(Behavior):
 		bs = self.behaviorManager.behaviorStack
 		bm = self.behaviorManager.ballManager
 		output = PilotCommands(ai)
+
+		output.rollerCommand = RollerCommands.FORWARD
+		output.winchCommand = WinchCommands.DOWN
+		output.rampCommand = RampCommands.UP
 
 		if previousBehavior != self:
 			self.init(bm.ballCount)
@@ -64,7 +75,7 @@ class ApproachBall(Behavior):
 		if bm.ballCount > self.ballCount: # w00t, g0t b411
 			return None
 		ball = bm.getTarget()
-		if ball == None or not ball.recentlySeen():
+		if ball == None:
 			# lost the ball; hopefully this means that it is too close to us
 			bs.append(DriveStraightAcquireBall(self.behaviorManager, self.ballCount))
 			return None
@@ -78,9 +89,6 @@ class ApproachBall(Behavior):
 			output = None
 		self.lastRunTime = t
 
-		output.rollerCommand = RollerCommands.FORWARD
-		output.winchCommand = WinchCommands.DOWN
-		output.rampCommand = RampCommands.UP
 
 		return output
 
@@ -91,7 +99,7 @@ class ApproachBall(Behavior):
 		elif utilities.angleCenterZero(ball.angle - self.behaviorManager.lastArduinoInput.heading) > self.maxBallAngle:
 			return -1
 		else:
-			return utilites.approachBallPriority
+			return utilities.approachBallPriority
 	
 class DriveStraightAcquireBall(Behavior):
 	def __init__(self, behaviorManager, ballCount):

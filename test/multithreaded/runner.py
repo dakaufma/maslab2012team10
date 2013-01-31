@@ -45,15 +45,15 @@ if __name__ == "__main__":
 		while not (pStart and not ai.startButton):
 			pStart = ai.startButton
 
-			ard.lock.acquire()
-			ai = ard.otherConn.recv()
-			while ard.otherConn.poll():
+			if ard.lock.acquire(1):
 				ai = ard.otherConn.recv()
-			ard.lock.release()
+				while ard.otherConn.poll():
+					ai = ard.otherConn.recv()
+				ard.lock.release()
 
-			if pStart != ai.startButton:
-				print "Start button changed to " + str(ai.startButton)
-			systime.sleep(.01)
+				if pStart != ai.startButton:
+					print "Start button changed to " + str(ai.startButton)
+				systime.sleep(.01)
 
 		# start control thread; wait 3 minutes and stop all threads
 		behaviorManager = control.BehaviorManager(ard, pi, ip)
