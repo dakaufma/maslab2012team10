@@ -16,7 +16,7 @@ def getDistance(irVoltage):
 		return 1.0 / ( .02554 + (irVoltage -.7321) * ((.1421-.02554)/(2.982-.7321)) )
 
 class ArduinoInputData:
-	def __init__(self, leftDist=None, rightDist=None, startButton=None, heading=None, frBump=None, flBump=None, brBump=None, blBump=None, winchBottom=None, winchTop=None):
+	def __init__(self, leftDist=None, rightDist=None, startButton=None, heading=None, frBump=None, flBump=None, brBump=None, blBump=None, winchBottom=None, winchTop=None, batteryPower=None, motorPower=None):
 		self.leftDist = leftDist # cm
 		self.rightDist = rightDist # cm
 		self.startButton = startButton # boolean
@@ -27,6 +27,8 @@ class ArduinoInputData:
 		self.blBump = blBump
 		self.winchBottom = winchBottom
 		self.winchTop = winchTop
+		self.batteryPower = batteryPower
+		self.motorPower = motorPower
 
 class ArduinoOutputData:
 	def __init__(self, leftSpeed=0, rightSpeed=0, rollerCommand=0, winchCommand=0, rampAngle=0):
@@ -57,6 +59,8 @@ class ArduinoThread(StoppableThread):
 		self.blBump = arduino.DigitalInput(self.ard, 13)
 		self.winchTop = arduino.DigitalInput(self.ard, 14)
 		self.winchBottom = arduino.DigitalInput(self.ard, 15)
+		self.robotPower = arduino.DigitalInput(self.ard, 16)
+		self.motorPower = arduino.DigitalInput(self.ard, 17)
 
 		while True:
 			self.ard.run()
@@ -92,6 +96,9 @@ class ArduinoThread(StoppableThread):
 		data.flBump = self.flBump.getValue()
 		data.brBump = self.brBump.getValue()
 		data.blBump = self.blBump.getValue()
+
+		data.batteryPower = self.batteryPower.getValue()
+		data.motorPower = self.motorPower.getValue()
 
 		self.conn.send(data)
 

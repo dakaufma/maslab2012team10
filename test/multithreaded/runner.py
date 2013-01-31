@@ -6,6 +6,7 @@ import pilot
 import control
 import arduinoIO
 import time as systime
+import traceback
 
 if __name__ == "__main__":
 	ard = arduinoIO.ArduinoThread()
@@ -23,6 +24,19 @@ if __name__ == "__main__":
 		ard.lock.acquire()
 		ai = ard.otherConn.recv() 
 		ard.lock.release()
+
+		# check to see if the battery is connected
+		userWarning = None
+		if not ai.batteryPower:
+			userWarning = "Hey! Power on the robot!"
+		elif not ai.motorPower:
+			userWarning = "Hey! Power on the motor controller!"
+		if userWarning!=None:
+			print userWarning
+			try:
+				subprocess.Popen(["espeak",userwarning])
+			except:
+				traceback.print_exc()
 
 		# wait for falling edge on start button
 		print "Waiting for falling edge..."
