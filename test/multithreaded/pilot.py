@@ -14,7 +14,10 @@ class RampCommands:
 	STOP, UP, DOWN = range(3)
 
 class PilotCommands:
-	def __init__(self, forwardSpeed=0, desiredDeltaAngle=None, turnSpeed=0, rollerCommand=RollerCommands.STOP, winchCommand=WinchCommands.STOP, rampCommand=RampCommands.STOP):
+	def __init__(self, arduinoInput, forwardSpeed=0, desiredDeltaAngle=None, turnSpeed=0, rollerCommand=RollerCommands.STOP, winchCommand=WinchCommands.STOP, rampCommand=RampCommands.STOP):
+		# Arduino input (needed for limit switches)
+		self.ai = arduinoInput
+
 		# Drive commands: forwardSpeed and one type of angular control should be non-None
 		self.forwardSpeed = forwardSpeed
 		self.desiredDeltaAngle = desiredDeltaAngle
@@ -57,7 +60,7 @@ class Pilot(StoppableThread):
 		
 		if commands == None:
 			if time.time() - self.lastTimeCommandReceived > self.deadManTimeout:
-				commands = PilotCommands() # dead man's switch activated -- stop the robot until you get another command
+				commands = PilotCommands(None) # dead man's switch activated -- stop the robot until you get another command
 			else:
 				time.sleep(.01)
 		else: # command received
@@ -77,7 +80,7 @@ class Pilot(StoppableThread):
 	def cleanup(self):
 		pass
 
-	def evalDriveCommand(ao, commands):
+	def evalDriveCommand(self, ao, commands):
 		if commands.forwardSpeed == None:
 			return
 
@@ -106,30 +109,30 @@ class Pilot(StoppableThread):
 			tmp = max(abs(l), abs(r), 127)
 			l = int(l*127/tmp)
 			r = int(r*127/tmp)
-			ard.leftSpeed = l
-			ard.rightSpeed = r
+			ao.leftSpeed = l
+			ao.rightSpeed = r
 
-	def evalRollerCommand(ao, commands):
+	def evalRollerCommand(self, ao, commands):
 		speedMap = {RollerCommands.STOP:0, RollerCommands.FORWARD:127, RollerCommands.REVERSE:-127}
 		ao.rollerSpeed = speedMap[commands.rollerCommand]
 
-	def evalWinchCommand(ao, commands):
+	def evalWinchCommand(self, ao, commands):
 		if commands.winchCommand == WinchCommands.UP:
-			if not ai.topLimit:
+			if not commands.ai.topLimit:
 				ao.winchSpeed = 127
 			else:
 				ao.winchSpeed = 0
 		elif commands.winchCommand == WinchCommands.STOP:
 			ao.winchSpeed = 0
 		elif commands.winchCommand == WinchCommands.DOWN:
-			if not ai.bottomLimit:
+			if not commands.ai.bottomLimit:
 				ao.winchSpeed = -127
 			else:
 				ao.winchSpeed = 0
 		elif commands.winchCommand == WinchCommands.HALF:
 			raise NotImplementedError()
 
-	def evalRampCommand(ao, commands):
+	def evalRampCommand(self, ao, commands):
 		if commands.rampCommand == RampCommands.UP:
 			ao.rampAngle = self.rampUpAngle
 		elif commands.rampCommand == RampCommands.DOWN:

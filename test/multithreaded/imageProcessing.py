@@ -35,6 +35,9 @@ class ImageProcessingThread(StoppableThread):
 		self.mask2 = None # other image used to create the mask
 		self.maskedDistImg = None # distImg masked by the mask
 		self.binImg = None # binary image (get ball contours from this)
+		self.hueMask = None 
+		self.satMask = None 
+		self.mask = None
 
 		self.scale = .25 # factor by which to scale down the acquired image
 		self.distThreshold = 80 # empirically determined
@@ -185,7 +188,7 @@ class ImageProcessingThread(StoppableThread):
 		#generate mask based on hue
 		self.hueMask = cv2.inRange(self.hueImg, numpy.array([self.yellowMinHue]), numpy.array([self.yellowMaxHue]), self.hueMask)
 		self.satMask = cv2.inRange(self.satImg, numpy.array([self.yellowMinSat]), numpy.array([self.yellowMaxSat]), self.satMask)
-		self.mask = cv2.min(hueMask, satMask, self.mask) # AND of both masks
+		self.mask = cv2.min(self.hueMask, self.satMask, self.mask) # AND of both masks
 
 		# find contours with at least [const] area 
 

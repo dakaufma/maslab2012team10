@@ -19,9 +19,9 @@ class LiftBasket(Behavior):
 		if self.behaviorManager.lastArduinoInput.winchTop or time.time() - self.startTime > self.timeout:
 			self.behaviorManager.behaviorStack.append(WaitWhileScoring(self.behaviorManager))
 		else:
-			self.behaviormanager.behaviorStack.append(self)
+			self.behaviorManager.behaviorStack.append(self)
 
-		outputs = PilotCommands()
+		outputs = PilotCommands(self.behaviorManager.lastArduinoInput)
 		
 		outputs.forwardSpeed = 0
 		outputs.turnSpeed = 0
@@ -45,7 +45,7 @@ class WaitWhileScoring(Behavior):
 		else:
 			self.behaviorManager.behaviorStack.append(self)
 
-		outputs = PilotCommands()
+		outputs = PilotCommands(self.behaviorManager.lastArduinoInput)
 		
 		outputs.forwardSpeed = 0
 		outputs.turnSpeed = 0
@@ -69,7 +69,7 @@ class LowerBasket(Behavior):
 		else:
 			self.behaviormanager.behaviorStack.append(self)
 
-		outputs = PilotCommands()
+		outputs = PilotCommands(self.behaviorManager.lastArduinoInput)
 		
 		outputs.forwardSpeed = 0
 		outputs.turnSpeed = 0

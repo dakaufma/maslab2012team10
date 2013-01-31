@@ -16,7 +16,7 @@ def getDistance(irVoltage):
 		return 1.0 / ( .02554 + (irVoltage -.7321) * ((.1421-.02554)/(2.982-.7321)) )
 
 class ArduinoInputData:
-	def __init__(self, leftDist=None, rightDist=None, startButton=None, heading=None, frBump=None, flBump=None, brBump=None, blBump=None, winchBottom=None, winchTop=None, batteryPower=None, motorPower=None):
+	def __init__(self, leftDist=None, rightDist=None, startButton=None, heading=None, frBump=None, flBump=None, brBump=None, blBump=None, winchBottom=None, winchTop=None, robotPower=None, motorPower=None):
 		self.leftDist = leftDist # cm
 		self.rightDist = rightDist # cm
 		self.startButton = startButton # boolean
@@ -27,15 +27,15 @@ class ArduinoInputData:
 		self.blBump = blBump
 		self.winchBottom = winchBottom
 		self.winchTop = winchTop
-		self.batteryPower = batteryPower
+		self.robotPower = robotPower
 		self.motorPower = motorPower
 
 class ArduinoOutputData:
-	def __init__(self, leftSpeed=0, rightSpeed=0, rollerCommand=0, winchCommand=0, rampAngle=0):
+	def __init__(self, leftSpeed=0, rightSpeed=0, rollerSpeed=0, winchSpeed=0, rampAngle=0):
 		self.leftSpeed = leftSpeed
 		self.rightSpeed = rightSpeed
-		self.rollerCommand = rollerCommand
-		self.winchCommand = winchCommand
+		self.rollerSpeed = rollerSpeed
+		self.winchSpeed = winchSpeed
 		self.rampAngle = rampAngle
 
 class ArduinoThread(StoppableThread):
@@ -97,7 +97,7 @@ class ArduinoThread(StoppableThread):
 		data.brBump = self.brBump.getValue()
 		data.blBump = self.blBump.getValue()
 
-		data.batteryPower = self.batteryPower.getValue()
+		data.robotPower = self.robotPower.getValue()
 		data.motorPower = self.motorPower.getValue()
 
 		self.conn.send(data)
@@ -106,9 +106,9 @@ class ArduinoThread(StoppableThread):
 		if out != None:
 			self.right.setSpeed(-int(out.rightSpeed))
 			self.left.setSpeed(-int(out.leftSpeed))
-			#self.winch.setSpeed(int(out.winchSpeed))
-			#self.roller.setSpeed(int(out.rollerSpeed))
-			#self.ramp.setAngle(int(out.rampAngle))
+			self.winch.setSpeed(int(out.winchSpeed))
+			self.roller.setSpeed(int(out.rollerSpeed))
+			self.ramp.setAngle(int(out.rampAngle))
 			self.logger.debug("Left speed: {0}".format(out.leftSpeed))
 			self.logger.debug("Right speed: {0}".format(out.rightSpeed))
 			self.logger.debug("Winch speed: {0}".format(out.winchSpeed))
@@ -116,5 +116,8 @@ class ArduinoThread(StoppableThread):
 			self.logger.debug("Ramp angle: {0}".format(out.rampAngle))
 
 	def cleanup(self):
-		self.ard.stop()
+		try:
+			self.ard.stop()
+		except:
+			print "Error stopping the arduino; must not have been connected"
 

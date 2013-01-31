@@ -7,6 +7,7 @@ import control
 import arduinoIO
 import time as systime
 import traceback
+import subprocess
 
 if __name__ == "__main__":
 	ard = arduinoIO.ArduinoThread()
@@ -27,14 +28,14 @@ if __name__ == "__main__":
 
 		# check to see if the battery is connected
 		userWarning = None
-		if not ai.batteryPower:
+		if not ai.robotPower:
 			userWarning = "Hey! Power on the robot!"
 		elif not ai.motorPower:
 			userWarning = "Hey! Power on the motor controller!"
 		if userWarning!=None:
 			print userWarning
 			try:
-				subprocess.Popen(["espeak",userwarning])
+				subprocess.Popen(["espeak",userWarning])
 			except:
 				traceback.print_exc()
 
@@ -55,11 +56,13 @@ if __name__ == "__main__":
 			systime.sleep(.01)
 
 		# start control thread; wait 3 minutes and stop all threads
-		behaviorManager = control.BehaviorManager(pi, ip)
+		behaviorManager = control.BehaviorManager(ard, pi, ip)
 		print "Starting robot..."
 		behaviorManager.start()
 		systime.sleep(3*60 + 1)
 	except:
+		print "Error in runner??!?!??! That shouldn't happen...."
+		traceback.print_exc()
 		raise #do something else here?
 	finally:
 		print "Stopping robot..." # Note that the BehaviorManager should have already stopped it; this is a double check (plus it actually stops the threads).

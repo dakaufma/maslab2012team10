@@ -42,7 +42,7 @@ class ApproachYellowWall(Behavior):
 		else:
 			bs.append(self)
 
-		output = PilotCommands()
+		output = PilotCommands(ai)
 		output.rollerCommand = RollerCommands.FORWARD
 		output.winchCommand = WinchCommands.DOWN
 		output.rampCommand = RampCommands.UP

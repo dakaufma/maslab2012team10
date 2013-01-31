@@ -9,8 +9,9 @@ import time
 class BehaviorManager(StoppableThread):
 	"""Selects the robot's behavior (explore straight, approach ball, dump balls, etc) based on inputs, robot state, and time remaining in the game. The defaultBehaviors list contains all possible behaviors (it picks the highest priority behavior). If a behavior requires itself or another behavior to be run again it can add itself/other behaviors to the behaviorStack. Note that a behavior could be called indefinitely if it always added itself to the stack. After 3 minutes the BehaviorManager will stop the robot regardless of the contents of the behaviorStack."""
 
-	def __init__(self, pilot, vision):
+	def __init__(self, ard, pilot, vision):
 		super(BehaviorManager, self).__init__("BehaviorManager")
+		self.ard = ard
 		self.pilot = pilot
 		self.vision = vision
 
@@ -27,6 +28,20 @@ class BehaviorManager(StoppableThread):
 		self.timeStackLastEmpty = time.time()
 		self.maxTimeStackFilled = 30 # seconds
 
+		#ensure that we have some input from other processes
+		self.ard.lock.acquire()
+		while True:
+			self.lastArduinoInput = self.ard.otherConn.recv()
+			if not self.ard.otherConn.poll():
+				break
+		self.ard.lock.release()
+		self.vision.lock.acquire()
+		while True:
+			self.lastVisionInput = self.vision.otherConn.recv()
+			if not self.vision.conn.poll():
+				break
+		self.vision.lock.release()
+
 	def safeRun(self):
 		# update input information from other processes
 		self.ard.lock.acquire()
@@ -39,23 +54,23 @@ class BehaviorManager(StoppableThread):
 		self.vision.lock.release()
 
 		self.ballManager.update(self.lastVisionInput.balls)
-		self.wallmanager.update(self.lastVisionInput.walls)
+		self.wallManager.update(self.lastVisionInput.walls)
 
 		# select the next behavior
 		if time.time()-self.start > 3*60: # Force the stop state when the match ends
 			behavior = StopPermanently(self)
-		elif not behaviorStack and time.time()-self.timeStackLastEmpty > self.maxTimeStackFilled: # If the stack has been occupied too long, assume something went wrong and reset stuff
+		elif not self.behaviorStack and time.time()-self.timeStackLastEmpty > self.maxTimeStackFilled: # If the stack has been occupied too long, assume something went wrong and reset stuff
 			self.behaviorStack = []
 			self.timeStackLastEmpty = time.time()
 			behavior = ForcedMarch(self)
-		elif len(behaviorStack) > 0: # take the next behavior off the stack
-			behavior = behaviorStack.items.pop()
+		elif len(self.behaviorStack) > 0: # take the next behavior off the stack
+			behavior = self.behaviorStack.pop()
 		else: # select the default state with the highest priority
 			self.timeStackLastEmpty = time.time()
 			behavior = None
 			priority = None
-			for b in defaultBehaviors:
-				p = b.getPriority(self)
+			for b in self.defaultBehaviors:
+				p = b.getPriority()
 				if priority==None or p > priority:
 					behavior = b
 					priority = p

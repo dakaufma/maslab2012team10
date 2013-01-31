@@ -16,7 +16,7 @@ class BallManager:
 		self.noTargetFrameCount = 0
 		self.maxFrames = 3
 
-	def getTarget():
+	def getTarget(self):
 		if self.noTargetFrameCount <= self.maxFrames:
 			return self.target
 		else:

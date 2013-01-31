@@ -14,7 +14,7 @@ class TurnToBall(Behavior):
 		self.ball = bm.getTarget()
 
 	def execute(self, previousBehavior):
-		output = PilotCommands()
+		output = PilotCommands(self.behaviorManager.lastArduinoInput)
 		bm = self.behaviorManager.ballManager
 		if (previousBehavior != self):
 			self.init(bm)
@@ -48,11 +48,11 @@ class ApproachBall(Behavior):
 		self.ballcount = ballCount
 
 	def execute(self, previousBehavior):
-		output = PilotCommands()
 		ai = self.behaviorManager.lastArduinoInput
 		vi = self.behaviorManager.lastVisionInput
 		bs = self.behaviorManager.behaviorStack
 		bm = self.behaviorManager.ballManager
+		output = PilotCommands(ai)
 
 		if previousBehavior != self:
 			self.init(bm.ballCount)
@@ -104,11 +104,11 @@ class DriveStraightAcquireBall(Behavior):
 		self.startTime = time.time()
 
 	def execute(self):
-		output = PilotCommands()
 		ai = self.behaviorManager.lastArduinoInput
 		vi = self.behaviorManager.lastVisionInput
 		bs = self.behaviorManager.behaviorStack
 		bm = self.behaviorManager.ballManager
+		output = PilotCommands(ai)
 
 		pilotCommands.forwardSpeed = self.forwardSpeed
 

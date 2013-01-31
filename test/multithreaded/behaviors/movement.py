@@ -25,7 +25,7 @@ class DriveStraight(Behavior):
 		elif self.avoidWalls and utilities.nearWall(ai):
 			bs.append(AvoidWall(self.behaviorManager))
 
-		output = PilotCommands()
+		output = PilotCommands(ai)
 		output.forwardSpeed = self.forwardSpeed
 		output.rollerCommand = RollerCommands.FORWARD
 		output.winchCommand = WinchCommands.DOWN
@@ -43,11 +43,11 @@ class AvoidWall(Behavior):
 		self.logger = logger
 
 	def execute(self, previousBehavior):
-		output = PilotCommands()
 		ai = self.behaviorManager.lastArduinoInput
 		vi = self.behaviorManager.lastVisionInput
 		bs = self.behaviorManager.behaviorStack
 		bm = self.behaviorManager.ballManager
+		output = PilotCommands(ai)
 
 		if utilities.crashed(ai):
 			bs.append(self)
@@ -77,18 +77,18 @@ class Uncrash(Behavior):
 		self.forwardSpeed = 127
 		self.turnSpeed = 80
 
-	def init(ai):
+	def init(self, ai):
 		self.crashedRight = ai.frBump or ai.brBump
 		self.crashedLeft = ai.flBump or ai.blBump
 		self.crashedFront = ai.frBump or flBump
 		self.crashedBack = ai.brBump or blBump
 
 	def execute(self, previousBehavior):
-		output = PilotCommands()
 		ai = self.behaviorManager.lastArduinoInput
 		vi = self.behaviorManager.lastVisionInput
 		bs = self.behaviorManager.behaviorStack
 		bm = self.behaviorManager.ballManager
+		output = PilotCommands(ai)
 		
 		if (previousBehavior != self):
 			self.init(ai)
@@ -121,7 +121,7 @@ class StopPermanently(Behavior):
 
 	def execute(self, previousState):
 		self.behaviorManager.behaviorStack.append(this)
-		return PilotCommands()
+		return PilotCommands(self.behaviorManager.lastArduinoInput)
 
 
 class ForcedMarch(Behavior):
