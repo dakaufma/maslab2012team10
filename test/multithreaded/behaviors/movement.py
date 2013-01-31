@@ -6,9 +6,10 @@ import time
 class DriveStraight(Behavior):
 	"""Goes forward. Can change states to track a ball or avoid a wall"""
 
-	def __init__(self, behaviorManager):
+	def __init__(self, behaviorManager, avoidWalls=True):
 		self.behaviorManager = behaviorManager
 		self.logger = behaviorManager.logger
+		self.avoidWalls = avoidWalls
 		self.forwardSpeed = 127
 		self.minDist = 25 # cm
 
@@ -20,9 +21,9 @@ class DriveStraight(Behavior):
 
 		if utilities.crashed(ai):
 			bs.append(Uncrash(self.behaviorManager))
-		elif utilities.nearWall(ai):
-			bs.append(AvoidWall(self.behaviorManager))
 
+		elif self.avoidWalls and utilities.nearWall(ai):
+			bs.append(AvoidWall(self.behaviorManager))
 
 		output = PilotCommands()
 		output.forwardSpeed = self.forwardSpeed
@@ -124,12 +125,12 @@ class StopPermanently(Behavior):
 
 
 class ForcedMarch(Behavior):
-	"""Forces the robot to ignore balls, towers, etc for a certain time period and just drive around. Intended as a means of resetting the robot when something goes wrong."""
+	"""Forces the robot to ignore balls, towers, etc for a certain time period and just drive around. Intended as a means of resetting the robot when something goes wrong. The robot doesn't avoid walls, but does Uncrash itself if necessary."""
 
 	def __init__(self, behaviorManager):
 		self.behaviorManager = behaviorManager
 		self.logger = logger
-		self.forward = DriveStraight(behaviorManager)
+		self.forward = DriveStraight(behaviorManager, False)
 		self.timeout = 10 # sec
 
 	def init(self):
